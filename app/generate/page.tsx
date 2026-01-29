@@ -1,47 +1,45 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import useSWR from 'swr';
+
+const fetcher = async (url: string) => {
+  const response = await fetch(url);
+  if (!response.ok) {
+    let errorMessage = 'Failed to generate skill';
+    try {
+      const errorData = await response.json();
+      errorMessage = errorData.error || errorMessage;
+    } catch {
+      // If JSON parsing fails, use status text
+      errorMessage = `Request failed with status ${response.status}: ${response.statusText}`;
+    }
+    throw new Error(errorMessage);
+  }
+  const data = await response.json();
+  if (!data.skill) {
+    throw new Error('No skill content received from server');
+  }
+  return data.skill;
+};
 
 function GenerateContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const repo = searchParams.get('repo') || '';
   
-  const [skill, setSkill] = useState<string>('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>('');
-
-  useEffect(() => {
-    if (!repo) {
-      setError('No repository specified');
-      setLoading(false);
-      return;
+  const { data: skill, error, isLoading } = useSWR(
+    repo ? `/api/generate-skill?repo=${encodeURIComponent(repo)}` : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
     }
+  );
 
-    const fetchSkill = async () => {
-      try {
-        setLoading(true);
-        setError('');
-        
-        const response = await fetch(`/api/generate-skill?repo=${encodeURIComponent(repo)}`);
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to generate skill');
-        }
-
-        const data = await response.json();
-        setSkill(data.skill);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSkill();
-  }, [repo]);
+  const loading = isLoading;
+  const errorMessage = error instanceof Error ? error.message : (error ? 'An error occurred' : '');
 
   const handleDownload = () => {
     if (!skill) return;
@@ -61,20 +59,7 @@ function GenerateContent() {
     router.push('/');
   };
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-        <main className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="text-lg text-zinc-600 dark:text-zinc-400">
-            Generating skill for <code className="bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded">{repo}</code>...
-          </p>
-        </main>
-      </div>
-    );
-  }
-
-  if (error) {
+  if (!repo) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
         <main className="flex flex-col items-center gap-6 max-w-2xl px-8">
@@ -82,12 +67,51 @@ function GenerateContent() {
             <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">
               Error
             </h1>
-            <p className="text-lg text-zinc-600 dark:text-zinc-400 mb-6">
-              {error}
+            <p className="text-lg text-zinc-600 dark:text-zinc-400 mb-6" aria-live="polite">
+              No repository specified
             </p>
             <button
               onClick={handleBack}
-              className="px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
+              className="px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Go Back
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
+        <main className="flex flex-col items-center gap-4">
+          <div 
+            className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"
+            aria-hidden="true"
+          ></div>
+          <p className="text-lg text-zinc-600 dark:text-zinc-400" aria-live="polite">
+            Generating skill for <code className="bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded">{repo}</code>…
+          </p>
+        </main>
+      </div>
+    );
+  }
+
+  if (errorMessage) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
+        <main className="flex flex-col items-center gap-6 max-w-2xl px-8">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">
+              Error
+            </h1>
+            <p className="text-lg text-zinc-600 dark:text-zinc-400 mb-6" aria-live="polite">
+              {errorMessage}
+            </p>
+            <button
+              onClick={handleBack}
+              className="px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
               Go Back
             </button>
@@ -102,7 +126,7 @@ function GenerateContent() {
       <main className="max-w-4xl mx-auto py-8 px-4 sm:px-8">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-black dark:text-zinc-50 mb-2">
+            <h1 className="text-2xl font-bold text-black dark:text-zinc-50 mb-2 text-balance">
               Generated Skill
             </h1>
             <p className="text-zinc-600 dark:text-zinc-400">
@@ -112,13 +136,13 @@ function GenerateContent() {
           <div className="flex gap-3">
             <button
               onClick={handleBack}
-              className="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-black dark:text-zinc-50 transition-colors"
+              className="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-black dark:text-zinc-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
               Back
             </button>
             <button
               onClick={handleDownload}
-              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
+              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
               Download SKILL.md
             </button>
@@ -139,7 +163,10 @@ export default function GeneratePage() {
   return (
     <Suspense fallback={
       <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div 
+          className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"
+          aria-hidden="true"
+        ></div>
       </div>
     }>
       <GenerateContent />

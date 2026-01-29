@@ -171,7 +171,7 @@ export async function GET(request: NextRequest) {
 
     if (!repoParam) {
       return NextResponse.json(
-        { error: 'Missing repo parameter. Use ?repo=owner/repo' },
+        { error: 'Missing repo parameter. Please provide a GitHub repository in the format: owner/repo (e.g., facebook/react)' },
         { status: 400 }
       );
     }
@@ -182,12 +182,15 @@ export async function GET(request: NextRequest) {
 
     if (!match) {
       return NextResponse.json(
-        { error: 'Invalid repo format. Use owner/repo format' },
+        { error: 'Invalid repo format. Please use the format: owner/repo (e.g., facebook/react)' },
         { status: 400 }
       );
     }
 
     const [, owner, repo] = match;
+
+    // Start fetching README immediately since it doesn't depend on branch
+    const readmePromise = getReadme(owner, repo);
 
     // Try main branch first, fallback to master
     let fileTree: string;
@@ -202,14 +205,14 @@ export async function GET(request: NextRequest) {
         fileTree = await getFileTree(owner, repo, branch);
       } catch (masterError) {
         return NextResponse.json(
-          { error: `Failed to fetch repository: ${error instanceof Error ? error.message : 'Unknown error'}` },
+          { error: `Failed to fetch repository "${owner}/${repo}". Please check that the repository exists and is accessible. Error: ${error instanceof Error ? error.message : 'Unknown error'}` },
           { status: 404 }
         );
       }
     }
 
-    // Get README
-    const readme = await getReadme(owner, repo);
+    // Wait for README to complete (may already be done)
+    const readme = await readmePromise;
 
     // Generate skill
     const skill = await generateSkill(fileTree, readme);
@@ -217,8 +220,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ skill });
   } catch (error) {
     console.error('Error generating skill:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to generate skill';
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to generate skill' },
+      { error: `Failed to generate skill. ${errorMessage}. Please try again or check that the repository is valid.` },
       { status: 500 }
     );
   }

@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function Home() {
   const [repo, setRepo] = useState('');
   const [error, setError] = useState('');
+  const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -15,19 +17,24 @@ export default function Home() {
     // Validate format: owner/repo
     const repoPattern = /^[\w.-]+\/[\w.-]+$/;
     if (!repoPattern.test(repo.trim())) {
-      setError('Please enter a valid GitHub repository in the format: owner/repo');
+      const errorMessage = 'Please enter a valid GitHub repository in the format: owner/repo';
+      setError(errorMessage);
+      // Focus the input field on error
+      inputRef.current?.focus();
       return;
     }
 
-    // Navigate to generate page
-    router.push(`/generate?repo=${encodeURIComponent(repo.trim())}`);
+    // Navigate to generate page with transition
+    startTransition(() => {
+      router.push(`/generate?repo=${encodeURIComponent(repo.trim())}`);
+    });
   };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-center py-32 px-16 bg-white dark:bg-black">
+      <main id="main-content" className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-center py-32 px-16 bg-white dark:bg-black">
         <div className="flex flex-col items-center gap-8 text-center w-full">
-          <h1 className="text-4xl font-bold leading-tight text-black dark:text-zinc-50">
+          <h1 className="text-4xl font-bold leading-tight text-black dark:text-zinc-50 text-balance">
             GitHub to Skill Converter
           </h1>
           <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
@@ -36,22 +43,47 @@ export default function Home() {
           
           <form onSubmit={handleSubmit} className="w-full max-w-md space-y-4">
             <div className="flex flex-col gap-2">
+              <label htmlFor="repo-input" className="sr-only">
+                GitHub Repository
+              </label>
               <input
+                id="repo-input"
+                ref={inputRef}
                 type="text"
+                name="repo"
                 value={repo}
                 onChange={(e) => setRepo(e.target.value)}
-                placeholder="e.g., facebook/react"
+                placeholder="e.g., facebook/react…"
+                autoComplete="off"
+                spellCheck={false}
+                aria-describedby={error ? "repo-error" : undefined}
+                aria-invalid={error ? "true" : "false"}
                 className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
               />
               {error && (
-                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                <p 
+                  id="repo-error"
+                  className="text-sm text-red-600 dark:text-red-400" 
+                  role="alert"
+                  aria-live="polite"
+                >
+                  {error}
+                </p>
               )}
             </div>
             <button
               type="submit"
-              className="w-full px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              disabled={isPending}
+              className="w-full px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
-              Generate Skill
+              {isPending ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" aria-hidden="true"></span>
+                  Generating…
+                </span>
+              ) : (
+                'Generate Skill'
+              )}
             </button>
           </form>
         </div>
