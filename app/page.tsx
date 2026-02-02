@@ -74,7 +74,7 @@ export default function Home() {
             GitHub to Skill
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-500">
-            Convert repositories to Cursor skills
+            Convert repositories to Agent skills
           </p>
         </div>
         
@@ -90,7 +90,7 @@ export default function Home() {
               name="repo"
               value={repo}
               onChange={(e) => setRepo(e.target.value)}
-              placeholder="owner/repo or github.com/owner/repo"
+              placeholder="github.com/owner/repo"
               autoComplete="off"
               spellCheck={false}
               aria-describedby={error ? "repo-error" : undefined}
