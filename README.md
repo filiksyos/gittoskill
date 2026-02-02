@@ -1,6 +1,6 @@
 # GitHub to Skill Converter
 
-A simple Next.js application that converts GitHub repositories into Cursor skills. Enter a repository in the format `owner/repo` and get a generated Cursor skill file.
+A simple Next.js application that converts GitHub repositories into Agent skills. Enter a repository in the format `owner/repo` and get a generated Agent skill file.
 
 ## Features
 
@@ -59,7 +59,7 @@ pnpm dev
 
 1. **GitHub API**: Fetches the repository's file tree (root level) and README.md
 2. **OpenRouter API**: Sends the repository information to OpenRouter with a system prompt
-3. **Skill Generation**: Generates a Cursor skill following SKILL.md format
+3. **Skill Generation**: Generates an Agent skill following SKILL.md format
 4. **Display**: Shows the generated skill with download option
 
 ## Project Structure
@@ -82,7 +82,7 @@ gittoskill/
 
 ### GET /api/generate-skill?repo=owner/repo
 
-Generates a Cursor skill from a GitHub repository.
+Generates an Agent skill from a GitHub repository.
 
 **Query Parameters:**
 - `repo` (required): GitHub repository in format `owner/repo`

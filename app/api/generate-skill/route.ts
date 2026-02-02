@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const SYSTEM_PROMPT = `You are a skill generator for Cursor. Generate a Cursor skill (SKILL.md format) from the provided GitHub repository.
+const SYSTEM_PROMPT = `You are a skill generator for AI agents. Generate an Agent skill (SKILL.md format) from the provided GitHub repository.
 
 Requirements:
 - The skill MUST start with --- (three dashes) for YAML frontmatter
@@ -161,7 +161,7 @@ async function generateSkill(fileTree: string, readme: string): Promise<string> 
     throw new Error('OPENROUTER_API_KEY environment variable is not set');
   }
 
-  const userMessage = `Generate a Cursor skill for this repository:
+  const userMessage = `Generate an Agent skill for this repository:
 
 File Tree:
 \`\`\`
