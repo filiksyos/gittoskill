@@ -122,35 +122,35 @@ function GenerateContent() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 font-sans dark:bg-black">
-      <main className="max-w-4xl mx-auto py-8 px-4 sm:px-8">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-black dark:text-zinc-50 mb-2 text-balance">
+    <div className="min-h-screen bg-white font-sans dark:bg-black">
+      <main className="max-w-4xl mx-auto py-6 px-4">
+        <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-black dark:text-zinc-50 mb-1">
               Generated Skill
             </h1>
-            <p className="text-zinc-600 dark:text-zinc-400">
-              Repository: <code className="bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded">{repo}</code>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 truncate">
+              <code className="bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded">{repo}</code>
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-2 flex-shrink-0">
             <button
               onClick={handleBack}
-              className="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-black dark:text-zinc-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-black dark:text-zinc-50 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
               Back
             </button>
             <button
               onClick={handleDownload}
-              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
-              Download SKILL.md
+              Download
             </button>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-          <pre className="p-6 overflow-x-auto text-sm font-mono text-black dark:text-zinc-50">
+        <div className="bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+          <pre className="p-4 text-xs sm:text-sm font-mono text-black dark:text-zinc-50 whitespace-pre-wrap break-words overflow-hidden">
             <code>{skill}</code>
           </pre>
         </div>

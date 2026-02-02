@@ -67,63 +67,63 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main id="main-content" className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-center py-32 px-16 bg-white dark:bg-black">
-        <div className="flex flex-col items-center gap-8 text-center w-full">
-          <h1 className="text-4xl font-bold leading-tight text-black dark:text-zinc-50 text-balance">
-            GitHub to Skill Converter
+    <main id="main-content" className="flex min-h-screen flex-col items-center justify-center px-4 py-12 font-sans bg-white dark:bg-black">
+      <div className="flex w-full max-w-lg flex-col items-center gap-8 text-center">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-bold text-black dark:text-zinc-50 text-balance">
+            GitHub to Skill
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Convert any GitHub repository into a Cursor skill. Simply enter the repository in the format <code className="bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded">owner/repo</code>
+          <p className="text-sm text-zinc-500 dark:text-zinc-500">
+            Convert repositories to Cursor skills
           </p>
-          
-          <form onSubmit={handleSubmit} className="w-full max-w-md space-y-4">
-            <div className="flex flex-col gap-2">
-              <label htmlFor="repo-input" className="sr-only">
-                GitHub Repository
-              </label>
-              <input
-                id="repo-input"
-                ref={inputRef}
-                type="text"
-                name="repo"
-                value={repo}
-                onChange={(e) => setRepo(e.target.value)}
-                placeholder="e.g., https://github.com/facebook/react or facebook/react"
-                autoComplete="off"
-                spellCheck={false}
-                aria-describedby={error ? "repo-error" : undefined}
-                aria-invalid={error ? "true" : "false"}
-                className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-              />
-              {error && (
-                <p 
-                  id="repo-error"
-                  className="text-sm text-red-600 dark:text-red-400" 
-                  role="alert"
-                  aria-live="polite"
-                >
-                  {error}
-                </p>
-              )}
-            </div>
-            <button
-              type="submit"
-              disabled={isPending}
-              className="w-full px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              {isPending ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" aria-hidden="true"></span>
-                  Generating…
-                </span>
-              ) : (
-                'Generate Skill'
-              )}
-            </button>
-          </form>
         </div>
-      </main>
-    </div>
+        
+        <form onSubmit={handleSubmit} className="w-full space-y-4">
+          <div className="flex flex-col gap-2">
+            <label htmlFor="repo-input" className="sr-only">
+              GitHub Repository
+            </label>
+            <input
+              id="repo-input"
+              ref={inputRef}
+              type="text"
+              name="repo"
+              value={repo}
+              onChange={(e) => setRepo(e.target.value)}
+              placeholder="owner/repo or github.com/owner/repo"
+              autoComplete="off"
+              spellCheck={false}
+              aria-describedby={error ? "repo-error" : undefined}
+              aria-invalid={error ? "true" : "false"}
+              className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-black dark:text-zinc-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+            />
+            {error && (
+              <p 
+                id="repo-error"
+                className="text-xs text-red-600 dark:text-red-400" 
+                role="alert"
+                aria-live="polite"
+              >
+                {error}
+              </p>
+            )}
+          </div>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="w-full px-4 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            {isPending ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-white" aria-hidden="true"></span>
+                Generating…
+              </span>
+            ) : (
+              'Generate Skill'
+            )}
+          </button>
+        </form>
+      </div>
+    </main>
   );
 }
