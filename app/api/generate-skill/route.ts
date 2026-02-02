@@ -3,13 +3,25 @@ import { NextRequest, NextResponse } from 'next/server';
 const SYSTEM_PROMPT = `You are a skill generator for Cursor. Generate a Cursor skill (SKILL.md format) from the provided GitHub repository.
 
 Requirements:
+- The skill MUST start with --- (three dashes) for YAML frontmatter
+- Do NOT wrap the content in code blocks. Output the raw SKILL.md content.
 - YAML frontmatter with name (lowercase, hyphens) and description (third person, specific, includes trigger terms)
 - Markdown body with essential instructions only
 - Keep under 500 lines
 - Focus on what the repository does and how to use it as a skill
 - Be concise - only include necessary information
 
-Generate the complete SKILL.md content.`;
+Example format:
+---
+name: example-skill
+description: Example skill description
+---
+
+# Skill Title
+
+Content here...
+
+Generate the complete SKILL.md content starting with ---.`;
 
 interface GitHubTreeItem {
   path: string;
@@ -25,6 +37,39 @@ interface GitHubTreeResponse {
 interface GitHubContentResponse {
   content: string;
   encoding: string;
+}
+
+function extractOwnerRepo(input: string): { owner: string; repo: string } | null {
+  if (!input || typeof input !== 'string') {
+    return null;
+  }
+
+  const trimmed = input.trim();
+
+  // Match GitHub URLs: https://github.com/owner/repo, https://www.github.com/owner/repo, github.com/owner/repo
+  // Also handles URLs with trailing slashes or paths
+  const urlPattern = /(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+)(?:\/.*)?$/i;
+  const urlMatch = trimmed.match(urlPattern);
+  
+  if (urlMatch) {
+    return {
+      owner: urlMatch[1],
+      repo: urlMatch[2].replace(/\.git$/, ''), // Remove .git suffix if present
+    };
+  }
+
+  // Match owner/repo format
+  const repoPattern = /^([\w.-]+)\/([\w.-]+)$/;
+  const repoMatch = trimmed.match(repoPattern);
+  
+  if (repoMatch) {
+    return {
+      owner: repoMatch[1],
+      repo: repoMatch[2],
+    };
+  }
+
+  return null;
 }
 
 async function getFileTree(owner: string, repo: string, branch: string): Promise<string> {
@@ -171,23 +216,22 @@ export async function GET(request: NextRequest) {
 
     if (!repoParam) {
       return NextResponse.json(
-        { error: 'Missing repo parameter. Please provide a GitHub repository in the format: owner/repo (e.g., facebook/react)' },
+        { error: 'Missing repo parameter. Please provide a GitHub repository URL or in the format: owner/repo (e.g., https://github.com/facebook/react or facebook/react)' },
         { status: 400 }
       );
     }
 
-    // Parse owner/repo
-    const repoPattern = /^([\w.-]+)\/([\w.-]+)$/;
-    const match = repoParam.match(repoPattern);
+    // Extract owner/repo from URL or owner/repo format
+    const extracted = extractOwnerRepo(repoParam);
 
-    if (!match) {
+    if (!extracted) {
       return NextResponse.json(
-        { error: 'Invalid repo format. Please use the format: owner/repo (e.g., facebook/react)' },
+        { error: 'Invalid repo format. Please provide a GitHub repository URL (e.g., https://github.com/owner/repo) or in the format: owner/repo (e.g., facebook/react)' },
         { status: 400 }
       );
     }
 
-    const [, owner, repo] = match;
+    const { owner, repo } = extracted;
 
     // Start fetching README immediately since it doesn't depend on branch
     const readmePromise = getReadme(owner, repo);

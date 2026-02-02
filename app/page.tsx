@@ -3,6 +3,39 @@
 import { useState, useTransition, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
+function extractOwnerRepo(input: string): { owner: string; repo: string } | null {
+  if (!input || typeof input !== 'string') {
+    return null;
+  }
+
+  const trimmed = input.trim();
+
+  // Match GitHub URLs: https://github.com/owner/repo, https://www.github.com/owner/repo, github.com/owner/repo
+  // Also handles URLs with trailing slashes or paths
+  const urlPattern = /(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+)(?:\/.*)?$/i;
+  const urlMatch = trimmed.match(urlPattern);
+  
+  if (urlMatch) {
+    return {
+      owner: urlMatch[1],
+      repo: urlMatch[2].replace(/\.git$/, ''), // Remove .git suffix if present
+    };
+  }
+
+  // Match owner/repo format
+  const repoPattern = /^([\w.-]+)\/([\w.-]+)$/;
+  const repoMatch = trimmed.match(repoPattern);
+  
+  if (repoMatch) {
+    return {
+      owner: repoMatch[1],
+      repo: repoMatch[2],
+    };
+  }
+
+  return null;
+}
+
 export default function Home() {
   const [repo, setRepo] = useState('');
   const [error, setError] = useState('');
@@ -14,19 +47,22 @@ export default function Home() {
     e.preventDefault();
     setError('');
 
-    // Validate format: owner/repo
-    const repoPattern = /^[\w.-]+\/[\w.-]+$/;
-    if (!repoPattern.test(repo.trim())) {
-      const errorMessage = 'Please enter a valid GitHub repository in the format: owner/repo';
+    // Extract owner/repo from URL or owner/repo format
+    const extracted = extractOwnerRepo(repo.trim());
+
+    if (!extracted) {
+      const errorMessage = 'Please enter a valid GitHub repository URL (e.g., https://github.com/owner/repo) or in the format: owner/repo';
       setError(errorMessage);
       // Focus the input field on error
       inputRef.current?.focus();
       return;
     }
 
-    // Navigate to generate page with transition
+    const { owner, repo: repoName } = extracted;
+
+    // Navigate to dynamic route with transition
     startTransition(() => {
-      router.push(`/generate?repo=${encodeURIComponent(repo.trim())}`);
+      router.push(`/${owner}/${repoName}`);
     });
   };
 
@@ -53,7 +89,7 @@ export default function Home() {
                 name="repo"
                 value={repo}
                 onChange={(e) => setRepo(e.target.value)}
-                placeholder="e.g., facebook/react…"
+                placeholder="e.g., https://github.com/facebook/react or facebook/react"
                 autoComplete="off"
                 spellCheck={false}
                 aria-describedby={error ? "repo-error" : undefined}
