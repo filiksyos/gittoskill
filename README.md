@@ -29,7 +29,7 @@ pnpm install
 3. Create `.env.local` file:
 
 ```bash
-cp .env.local.example .env.local
+cp .env.example .env.local
 ```
 
 4. Add your OpenRouter API key to `.env.local`:
@@ -74,7 +74,7 @@ gittoskill/
 │   │   └── generate-skill/
 │   │       └── route.ts      # API route that generates skills
 │   └── layout.tsx
-├── .env.local.example        # Example environment variables
+├── .env.example              # Example environment variables
 └── README.md
 ```
 
