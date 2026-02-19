@@ -40,6 +40,10 @@ skill-name/
 
 Call \`createSkillFiles\` exactly once, at the end, with all files. Never call it more than once.
 
+## createSkillFiles format
+
+Pass \`files\` as a JSON array of objects, e.g. \`[{"path":"SKILL.md","content":"..."}]\`. Do NOT pass a string—pass the actual array. Each object must have \`path\` and \`content\` as strings.
+
 ## Conciseness rule
 
 - Keep SKILL.md body under 500 lines.

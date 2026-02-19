@@ -7,10 +7,17 @@ import { readFilesTool } from '@/lib/tools/read-files'
 import { createSkillFilesTool } from '@/lib/tools/create-skill-files'
 import { getFileTree, getReadme } from '@/lib/github-client'
 import { formatAsFilteredTree } from '@/lib/file-tree-formatter'
+import { serverLog } from '@/lib/server-log'
 
 const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY,
 })
+
+const inFlight = new Map<string, Promise<{ files: Array<{ path: string; content: string }> } | NextResponse>>()
+
+function cacheKey(owner: string, repo: string, prompt?: string) {
+  return `${owner}/${repo}|${prompt ?? ''}`
+}
 
 export async function POST(request: NextRequest) {
   let body: { owner?: string; repo?: string; prompt?: string }
@@ -39,19 +46,30 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  let tree: { tree: Array<{ path: string; type: string }>; truncated: boolean }
-  let readme: string
-
-  try {
-    ;[tree, readme] = await Promise.all([
-      getFileTree(owner, repo),
-      getReadme(owner, repo),
-    ])
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    const status = message.toLowerCase().includes('not found') ? 404 : 500
-    return NextResponse.json({ error: message }, { status })
+  const key = cacheKey(owner, repo, prompt)
+  const existing = inFlight.get(key)
+  if (existing) {
+    console.log('[generate-skill] Dedup: waiting for in-flight', key)
+    const out = await existing
+    return out instanceof NextResponse ? out : NextResponse.json({ files: out.files }, { status: 200 })
   }
+
+  serverLog.request(owner, repo, prompt)
+
+  const promise = (async () => {
+    let tree: { tree: Array<{ path: string; type: string }>; truncated: boolean }
+    let readme: string
+
+    try {
+      ;[tree, readme] = await Promise.all([
+        getFileTree(owner, repo),
+        getReadme(owner, repo),
+      ])
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      const status = message.toLowerCase().includes('not found') ? 404 : 500
+      return NextResponse.json({ error: message }, { status })
+    }
 
   const depth1Tree = formatAsFilteredTree(
     tree.tree,
@@ -72,8 +90,11 @@ export async function POST(request: NextRequest) {
       : '*(No README.md or empty)*',
   ].join('') + (prompt ? `\n\n## User request\n\n${prompt}` : '')
 
+  let result: Awaited<ReturnType<typeof generateText>>
+  let stepIndex = 0
+
   try {
-    await generateText({
+    result = await generateText({
       model: openrouter.chat('anthropic/claude-sonnet-4-5'),
       system: SYSTEM_PROMPT,
       prompt: initialMessage,
@@ -86,9 +107,41 @@ export async function POST(request: NextRequest) {
       },
       stopWhen: [stepCountIs(20), hasToolCall('createSkillFiles')],
       maxOutputTokens: 16000,
+      onStepFinish: (stepResult) => {
+        try {
+          const toolCalls = stepResult.toolCalls.map((tc) => ({
+            toolName: tc.toolName,
+            args: tc.input,
+          }))
+          const toolResults = stepResult.toolResults.map((tr) => ({
+            toolName: tr.toolName,
+            resultPreview:
+              typeof tr.output === 'string'
+                ? tr.output
+                : JSON.stringify(tr.output).slice(0, 200),
+          }))
+          serverLog.stepFinish(
+            ++stepIndex,
+            toolCalls,
+            toolResults,
+            stepResult.finishReason ?? 'unknown',
+            stepResult.usage
+              ? {
+                  inputTokens: stepResult.usage.inputTokens,
+                  outputTokens: stepResult.usage.outputTokens,
+                  totalTokens: stepResult.usage.totalTokens,
+                }
+              : undefined
+          )
+        } catch (logErr) {
+          console.error('[generate-skill] (log error)', logErr)
+        }
+      },
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
+    const stack = error instanceof Error ? error.stack : undefined
+    serverLog.generateError(message, stack)
     return NextResponse.json(
       { error: `Skill generation failed: ${message}` },
       { status: 500 }
@@ -96,11 +149,27 @@ export async function POST(request: NextRequest) {
   }
 
   if (capturedFiles === null) {
+    serverLog.noFilesProduced()
     return NextResponse.json(
       { error: 'Agent did not produce skill files.' },
       { status: 500 }
     )
   }
 
-  return NextResponse.json({ files: capturedFiles }, { status: 200 })
+  serverLog.success(
+    capturedFiles.length,
+    capturedFiles.map((f) => f.path),
+    result.steps.length,
+    result.totalUsage
+  )
+  return { files: capturedFiles }
+  })()
+
+  inFlight.set(key, promise)
+  try {
+    const out = await promise
+    return out instanceof NextResponse ? out : NextResponse.json({ files: out.files }, { status: 200 })
+  } finally {
+    inFlight.delete(key)
+  }
 }

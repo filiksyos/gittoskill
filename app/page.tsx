@@ -38,6 +38,7 @@ function extractOwnerRepo(input: string): { owner: string; repo: string } | null
 
 export default function Home() {
   const [repo, setRepo] = useState('');
+  const [prompt, setPrompt] = useState('');
   const [error, setError] = useState('');
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -60,9 +61,11 @@ export default function Home() {
 
     const { owner, repo: repoName } = extracted;
 
-    // Navigate to dynamic route with transition
+    const url = prompt.trim()
+      ? `/${owner}/${repoName}?prompt=${encodeURIComponent(prompt.trim())}`
+      : `/${owner}/${repoName}`;
     startTransition(() => {
-      router.push(`/${owner}/${repoName}`);
+      router.push(url);
     });
   };
 
@@ -107,6 +110,20 @@ export default function Home() {
                 {error}
               </p>
             )}
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="prompt-input" className="text-sm text-zinc-600 dark:text-zinc-400">
+              What kind of skill do you want? <span className="text-zinc-400 dark:text-zinc-500">(optional)</span>
+            </label>
+            <textarea
+              id="prompt-input"
+              name="prompt"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              rows={3}
+              placeholder={`e.g. "A skill for an AI girlfriend focusing on emotional AI"\n"Best practices from this codebase"\n"A skill to let my agent talk to Supabase APIs"`}
+              className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-black dark:text-zinc-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 resize-y"
+            />
           </div>
           <button
             type="submit"
