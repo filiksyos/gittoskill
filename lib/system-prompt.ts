@@ -46,7 +46,10 @@ Pass \`files\` as a JSON array of objects, e.g. \`[{"path":"SKILL.md","content":
 
 ## Conciseness rule
 
-- Keep SKILL.md body under 500 lines.
+- Keep SKILL.md body under 300 lines.
 - Move detailed reference material to \`references/\` files.
 - Only include information Claude doesn't already have.
+- **Hard limit: each file must be under 400 lines.** If content would exceed this, split it into multiple \`references/\` files.
+- For design skills: never inline full CSS themes or component code; summarise patterns in SKILL.md and put any CSS/templates in a \`references/theme.css\` or \`assets/\` file, kept under 150 lines each.
+- The entire \`createSkillFiles\` call must be completable in a single response. If in doubt, produce fewer, shorter files rather than exhaustive ones.
 `

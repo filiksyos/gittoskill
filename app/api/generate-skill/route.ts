@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
         }),
       },
       stopWhen: [stepCountIs(20), hasToolCall('createSkillFiles')],
-      maxOutputTokens: 16000,
+      maxOutputTokens: 50000,
       onStepFinish: (stepResult) => {
         try {
           const toolCalls = stepResult.toolCalls.map((tc) => ({
