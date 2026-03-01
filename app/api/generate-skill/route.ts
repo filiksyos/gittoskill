@@ -177,8 +177,19 @@ export async function POST(request: NextRequest) {
       const message = error instanceof Error ? error.message : 'Unknown error'
       const stack = error instanceof Error ? error.stack : undefined
       serverLog.generateError(message, stack)
+      const lower = message.toLowerCase()
+      const isAuthError =
+        lower.includes('missing authentication') ||
+        lower.includes('authentication') ||
+        lower.includes('unauthorized') ||
+        lower.includes('invalid api key')
+
       return NextResponse.json(
-        { error: `Skill generation failed: ${message}` },
+        {
+          error: isAuthError
+            ? 'Skill generation failed: OpenRouter authentication failed. Verify OPENROUTER_API_KEY in .env.local and restart the dev server.'
+            : `Skill generation failed: ${message}`,
+        },
         { status: 500 }
       )
     }
