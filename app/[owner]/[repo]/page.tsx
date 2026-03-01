@@ -1,8 +1,51 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import JSZip from 'jszip';
+import useSWR from 'swr';
+
+type GeneratedSkillResponse = {
+  files: Array<{ path: string; content: string }>;
+};
+
+const generateSkillFetcher = async (
+  [, owner, repo, prompt]: readonly [string, string, string, string]
+): Promise<GeneratedSkillResponse> => {
+  const response = await fetch('/api/generate-skill', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ owner, repo, prompt }),
+  });
+
+  let payload: unknown = null;
+  try {
+    payload = await response.json();
+  } catch {
+    // Keep payload null and handle fallback message below.
+  }
+
+  if (!response.ok) {
+    const message =
+      payload &&
+      typeof payload === 'object' &&
+      'error' in payload &&
+      typeof (payload as { error?: unknown }).error === 'string'
+        ? (payload as { error: string }).error
+        : response.statusText || 'Request failed';
+    throw new Error(message);
+  }
+
+  const files =
+    payload &&
+    typeof payload === 'object' &&
+    'files' in payload &&
+    Array.isArray((payload as { files?: unknown }).files)
+      ? ((payload as { files: Array<{ path: string; content: string }> }).files ?? [])
+      : [];
+
+  return { files };
+};
 
 function GenerateContent() {
   const params = useParams();
@@ -12,45 +55,16 @@ function GenerateContent() {
   const repo = params.repo as string;
   const prompt = searchParams.get('prompt') ?? '';
   const repoParam = owner && repo ? `${owner}/${repo}` : '';
-
-  const [files, setFiles] = useState<Array<{ path: string; content: string }> | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState('');
-
-  useEffect(() => {
-    if (!repoParam) return;
-    setIsLoading(true);
-    setErrorMessage('');
-
-    const controller = new AbortController();
-
-    fetch('/api/generate-skill', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ owner, repo, prompt }),
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          try {
-            const data = await res.json();
-            setErrorMessage(data.error ?? res.statusText);
-          } catch {
-            setErrorMessage(res.statusText);
-          }
-          return;
-        }
-        const data = await res.json();
-        setFiles(data.files ?? []);
-        setErrorMessage('');
-      })
-      .catch((err) => {
-        if (err.name !== 'AbortError') setErrorMessage('Request failed');
-      })
-      .finally(() => setIsLoading(false));
-
-    return () => controller.abort();
-  }, [owner, repo, prompt]);
+  const { data, error, isLoading } = useSWR<GeneratedSkillResponse, Error>(
+    repoParam ? ['generate-skill', owner, repo, prompt] : null,
+    generateSkillFetcher,
+    {
+      revalidateOnFocus: false,
+      shouldRetryOnError: false,
+    }
+  );
+  const files = data?.files ?? null;
+  const errorMessage = error?.message ?? '';
 
   const handleDownload = () => {
     if (!files || files.length !== 1 || files[0].path !== 'SKILL.md') return;
@@ -127,7 +141,7 @@ function GenerateContent() {
             aria-hidden="true"
           ></div>
           <p className="text-lg text-zinc-600 dark:text-zinc-400" aria-live="polite">
-            Analyzing <code className="bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded">{repoParam}</code> and generating your skill…
+            Analyzing <code className="bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded">{repoParam}</code> and extracting scripts for your skill…
           </p>
           <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-2">
             This takes 2–4 minutes. Don&apos;t refresh—you&apos;ll start over.
@@ -171,7 +185,7 @@ function GenerateContent() {
         <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold text-black dark:text-zinc-50 mb-1">
-              Generated Skill
+              Generated Script Skill
             </h1>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 truncate">
               <code className="bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded">{repoParam}</code>
@@ -196,7 +210,7 @@ function GenerateContent() {
                 onClick={handleDownloadZip}
                 className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 whitespace-nowrap"
               >
-                Download as ZIP
+                Download Skill ZIP
               </button>
             )}
           </div>

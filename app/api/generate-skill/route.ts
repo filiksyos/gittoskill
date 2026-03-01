@@ -14,6 +14,8 @@ const openrouter = createOpenRouter({
 })
 
 const inFlight = new Map<string, Promise<{ files: Array<{ path: string; content: string }> } | NextResponse>>()
+const DEFAULT_EXTRACTION_OBJECTIVE =
+  'Extract the repository logic into reusable, runnable scripts and create a skill that tells an AI agent which script to use, what inputs are required, and how to validate results.'
 
 function cacheKey(owner: string, repo: string, prompt?: string) {
   return `${owner}/${repo}|${prompt ?? ''}`
@@ -46,7 +48,16 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const key = cacheKey(owner, repo, prompt)
+  if (prompt !== undefined && typeof prompt !== 'string') {
+    return NextResponse.json(
+      { error: 'prompt must be a string when provided' },
+      { status: 400 }
+    )
+  }
+
+  const normalizedPrompt = prompt?.trim() ?? ''
+  const effectivePrompt = normalizedPrompt || DEFAULT_EXTRACTION_OBJECTIVE
+  const key = cacheKey(owner, repo, effectivePrompt)
   const existing = inFlight.get(key)
   if (existing) {
     console.log('[generate-skill] Dedup: waiting for in-flight', key)
@@ -54,7 +65,7 @@ export async function POST(request: NextRequest) {
     return out instanceof NextResponse ? out : NextResponse.json({ files: out.files }, { status: 200 })
   }
 
-  serverLog.request(owner, repo, prompt)
+  serverLog.request(owner, repo, effectivePrompt)
 
   const promise = (async () => {
     let tree: { tree: Array<{ path: string; type: string }>; truncated: boolean }
@@ -65,104 +76,119 @@ export async function POST(request: NextRequest) {
         getFileTree(owner, repo),
         getReadme(owner, repo),
       ])
+      serverLog.githubOk(tree.tree.length, tree.truncated, readme.length)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       const status = message.toLowerCase().includes('not found') ? 404 : 500
       return NextResponse.json({ error: message }, { status })
     }
 
-  const depth1Tree = formatAsFilteredTree(
-    tree.tree,
-    `${owner}/${repo}`,
-    undefined,
-    1
-  )
-
-  let capturedFiles: Array<{ path: string; content: string }> | null = null
-
-  const initialMessage = [
-    '## Repository root structure (depth 1)\n\n```',
-    depth1Tree,
-    '```',
-    '\n\n## README\n\n',
-    readme
-      ? '```\n' + readme + '\n```'
-      : '*(No README.md or empty)*',
-  ].join('') + (prompt ? `\n\n## User request\n\n${prompt}` : '')
-
-  let result: Awaited<ReturnType<typeof generateText>>
-  let stepIndex = 0
-
-  try {
-    result = await generateText({
-      model: openrouter.chat('anthropic/claude-sonnet-4-5'),
-      system: SYSTEM_PROMPT,
-      prompt: initialMessage,
-      tools: {
-        getFileTree: getFileTreeTool,
-        readFiles: readFilesTool,
-        createSkillFiles: createSkillFilesTool((files) => {
-          capturedFiles = files
-        }),
-      },
-      stopWhen: [stepCountIs(20), hasToolCall('createSkillFiles')],
-      maxOutputTokens: 50000,
-      onStepFinish: (stepResult) => {
-        try {
-          const toolCalls = stepResult.toolCalls.map((tc) => ({
-            toolName: tc.toolName,
-            args: tc.input,
-          }))
-          const toolResults = stepResult.toolResults.map((tr) => ({
-            toolName: tr.toolName,
-            resultPreview:
-              typeof tr.output === 'string'
-                ? tr.output
-                : JSON.stringify(tr.output).slice(0, 200),
-          }))
-          serverLog.stepFinish(
-            ++stepIndex,
-            toolCalls,
-            toolResults,
-            stepResult.finishReason ?? 'unknown',
-            stepResult.usage
-              ? {
-                  inputTokens: stepResult.usage.inputTokens,
-                  outputTokens: stepResult.usage.outputTokens,
-                  totalTokens: stepResult.usage.totalTokens,
-                }
-              : undefined
-          )
-        } catch (logErr) {
-          console.error('[generate-skill] (log error)', logErr)
-        }
-      },
-    })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    const stack = error instanceof Error ? error.stack : undefined
-    serverLog.generateError(message, stack)
-    return NextResponse.json(
-      { error: `Skill generation failed: ${message}` },
-      { status: 500 }
+    const depth1Tree = formatAsFilteredTree(
+      tree.tree,
+      `${owner}/${repo}`,
+      undefined,
+      1
     )
-  }
 
-  if (capturedFiles === null) {
-    serverLog.noFilesProduced()
-    return NextResponse.json(
-      { error: 'Agent did not produce skill files.' },
-      { status: 500 }
+    let capturedFiles: Array<{ path: string; content: string }> = []
+    let didCaptureFiles = false
+    let stepIndex = 0
+    let totalSteps = 0
+    let totalUsage: unknown
+
+    const initialMessage = [
+      '## Repository root structure (depth 1)\n\n```',
+      depth1Tree,
+      '```',
+      '\n\n## README\n\n',
+      readme
+        ? '```\n' + readme + '\n```'
+        : '*(No README.md or empty)*',
+      '\n\n## Objective\n\n',
+      effectivePrompt,
+      '\n\n## Output contract\n\n',
+      '- Produce a skill package with SKILL.md, at least one scripts/* file, and references/source-map.md.\n',
+      '- Keep outputs concise and runnable.\n',
+      '- Focus only on code relevant to the objective.\n',
+      tree.truncated
+        ? '- Repository tree was truncated by GitHub API; prioritize key files and mention any assumptions.\n'
+        : '',
+    ].join('')
+
+    try {
+      const result = await generateText({
+        model: openrouter.chat('anthropic/claude-sonnet-4-5'),
+        system: SYSTEM_PROMPT,
+        prompt: initialMessage,
+        tools: {
+          getFileTree: getFileTreeTool,
+          readFiles: readFilesTool,
+          createSkillFiles: createSkillFilesTool((files) => {
+            capturedFiles = files
+            didCaptureFiles = true
+          }),
+        },
+        stopWhen: [stepCountIs(18), hasToolCall('createSkillFiles')],
+        maxOutputTokens: 12000,
+        onStepFinish: (stepResult) => {
+          try {
+            const toolCalls = stepResult.toolCalls.map((tc) => ({
+              toolName: tc.toolName,
+              args: tc.input,
+            }))
+            const toolResults = stepResult.toolResults.map((tr) => ({
+              toolName: tr.toolName,
+              resultPreview:
+                typeof tr.output === 'string'
+                  ? tr.output
+                  : JSON.stringify(tr.output).slice(0, 200),
+            }))
+            serverLog.stepFinish(
+              ++stepIndex,
+              toolCalls,
+              toolResults,
+              stepResult.finishReason ?? 'unknown',
+              stepResult.usage
+                ? {
+                    inputTokens: stepResult.usage.inputTokens,
+                    outputTokens: stepResult.usage.outputTokens,
+                    totalTokens: stepResult.usage.totalTokens,
+                  }
+                : undefined
+            )
+          } catch (logErr) {
+            console.error('[generate-skill] (log error)', logErr)
+          }
+        },
+      })
+      totalSteps = result.steps.length
+      totalUsage = result.totalUsage
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      const stack = error instanceof Error ? error.stack : undefined
+      serverLog.generateError(message, stack)
+      return NextResponse.json(
+        { error: `Skill generation failed: ${message}` },
+        { status: 500 }
+      )
+    }
+
+    if (!didCaptureFiles) {
+      serverLog.noFilesProduced()
+      return NextResponse.json(
+        { error: 'Agent did not produce skill files.' },
+        { status: 500 }
+      )
+    }
+    const finalizedFiles = capturedFiles
+
+    serverLog.success(
+      finalizedFiles.length,
+      finalizedFiles.map((f) => f.path),
+      totalSteps,
+      totalUsage
     )
-  }
-
-  serverLog.success(
-    capturedFiles.length,
-    capturedFiles.map((f) => f.path),
-    result.steps.length,
-    result.totalUsage
-  )
-  return { files: capturedFiles }
+    return { files: finalizedFiles }
   })()
 
   inFlight.set(key, promise)

@@ -74,10 +74,10 @@ export default function Home() {
       <div className="flex w-full max-w-lg flex-col items-center gap-8 text-center">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold text-black dark:text-zinc-50 text-balance">
-            GitHub to Skill
+            Script Extractor Skill Creator
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-500">
-            Convert repositories to Agent skills
+            Turn GitHub repos into AI skills with runnable scripts
           </p>
         </div>
         
@@ -93,7 +93,7 @@ export default function Home() {
               name="repo"
               value={repo}
               onChange={(e) => setRepo(e.target.value)}
-              placeholder="github.com/owner/repo"
+              placeholder="https://github.com/owner/repo"
               autoComplete="off"
               spellCheck={false}
               aria-describedby={error ? "repo-error" : undefined}
@@ -113,7 +113,7 @@ export default function Home() {
           </div>
           <div className="flex flex-col gap-2">
             <label htmlFor="prompt-input" className="text-sm text-zinc-600 dark:text-zinc-400">
-              What kind of skill do you want? <span className="text-zinc-400 dark:text-zinc-500">(optional)</span>
+              What script capability should the skill extract? <span className="text-zinc-400 dark:text-zinc-500">(optional)</span>
             </label>
             <textarea
               id="prompt-input"
@@ -121,7 +121,7 @@ export default function Home() {
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               rows={3}
-              placeholder={`e.g. "A skill for an AI girlfriend focusing on emotional AI"\n"Best practices from this codebase"\n"A skill to let my agent talk to Supabase APIs"`}
+              placeholder={`e.g. "Create a skill that turns images into dither art"\n"Extract scripts for generating signed upload URLs"\n"Extract scripts for running the core audio pipeline"`}
               className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-black dark:text-zinc-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 resize-y"
             />
           </div>
@@ -136,7 +136,7 @@ export default function Home() {
                 Generating…
               </span>
             ) : (
-              'Generate Skill'
+              'Extract Skill'
             )}
           </button>
         </form>

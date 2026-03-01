@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GitHub to Skill Converter",
-  description: "Convert GitHub repositories into Agent skills",
+  title: "Script Extractor Skill Creator",
+  description: "Extract runnable scripts from GitHub repos into AI skills",
 };
 
 export default function RootLayout({

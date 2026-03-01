@@ -32,6 +32,14 @@ export function createSkillFilesTool(
       if (!hasSkillMd) {
         throw new Error('files must include SKILL.md')
       }
+      const hasScript = files.some((f) => /(^|\/)scripts\/.+/.test(f.path))
+      if (!hasScript) {
+        throw new Error('files must include at least one scripts/* file')
+      }
+      const hasSourceMap = files.some((f) => /(^|\/)references\/source-map\.md$/.test(f.path))
+      if (!hasSourceMap) {
+        throw new Error('files must include references/source-map.md')
+      }
       onCapture(files)
       const paths = files.map((f) => f.path).join(', ')
       return `Successfully captured skill files: ${paths}`
