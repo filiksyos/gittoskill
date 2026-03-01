@@ -22,6 +22,16 @@ function cacheKey(owner: string, repo: string, prompt?: string) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY.trim() === '') {
+    return NextResponse.json(
+      {
+        error:
+          'OPENROUTER_API_KEY is missing. Add it to .env.local and restart the dev server.',
+      },
+      { status: 500 }
+    )
+  }
+
   let body: { owner?: string; repo?: string; prompt?: string }
   try {
     body = await request.json()
