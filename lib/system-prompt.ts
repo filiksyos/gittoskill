@@ -72,11 +72,12 @@ In \`references/source-map.md\`, include:
 
 ## Tool usage rules
 
-Call \`createSkillFiles\` exactly once, at the end, with all output files.
+**You MUST call \`createSkillFiles\`** before finishing. This is required—do not stop without calling it.
 
-Pass \`files\` as an actual JSON array of objects:
-\`[{"path":"SKILL.md","content":"..."}]\`
-Do not pass a stringified array.
+1. Explore with \`getFileTree\` and \`readFiles\` (pass owner and repo from the prompt).
+2. When you have SKILL.md + at least one scripts/* file ready, call \`createSkillFiles\` immediately.
+3. Pass \`files\` as an actual JSON array: \`[{"path":"SKILL.md","content":"..."},{"path":"scripts/..."}]\`
+4. Do not pass a stringified array. Include references/source-map.md when possible.
 
 ## Conciseness limits
 

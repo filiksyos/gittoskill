@@ -107,6 +107,7 @@ export async function POST(request: NextRequest) {
     let totalUsage: unknown
 
     const initialMessage = [
+      `## Repository\n\nUse **owner: "${owner}"** and **repo: "${repo}"** when calling getFileTree or readFiles.\n\n`,
       '## Repository root structure (depth 1)\n\n```',
       depth1Tree,
       '```',
@@ -127,7 +128,7 @@ export async function POST(request: NextRequest) {
 
     try {
       const result = await generateText({
-        model: openrouter.chat('anthropic/claude-sonnet-4-5'),
+        model: openrouter.chat('anthropic/claude-sonnet-4.5'),
         system: SYSTEM_PROMPT,
         prompt: initialMessage,
         tools: {
@@ -138,8 +139,8 @@ export async function POST(request: NextRequest) {
             didCaptureFiles = true
           }),
         },
-        stopWhen: [stepCountIs(18), hasToolCall('createSkillFiles')],
-        maxOutputTokens: 12000,
+        stopWhen: [stepCountIs(28), hasToolCall('createSkillFiles')],
+        maxOutputTokens: 16000,
         onStepFinish: (stepResult) => {
           try {
             const toolCalls = stepResult.toolCalls.map((tc) => ({

@@ -36,12 +36,17 @@ export function createSkillFilesTool(
       if (!hasScript) {
         throw new Error('files must include at least one scripts/* file')
       }
+      let finalFiles = files
       const hasSourceMap = files.some((f) => /(^|\/)references\/source-map\.md$/.test(f.path))
       if (!hasSourceMap) {
-        throw new Error('files must include references/source-map.md')
+        const scriptPaths = files
+          .filter((f) => /(^|\/)scripts\/.+/.test(f.path))
+          .map((f) => f.path)
+        const minimalSourceMap = `# Source map\n\n| Generated file | Source |\n|----------------|--------|\n${scriptPaths.map((p) => `| ${p} | (extracted from repo) |`).join('\n')}\n`
+        finalFiles = [...files, { path: 'references/source-map.md', content: minimalSourceMap }]
       }
-      onCapture(files)
-      const paths = files.map((f) => f.path).join(', ')
+      onCapture(finalFiles)
+      const paths = finalFiles.map((f) => f.path).join(', ')
       return `Successfully captured skill files: ${paths}`
     },
   })
