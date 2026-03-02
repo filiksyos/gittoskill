@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
       effectivePrompt,
       '\n\n## Output contract\n\n',
       '- Produce a skill package with SKILL.md, at least one scripts/* file, and references/source-map.md.\n',
-      '- Keep outputs concise and runnable.\n',
+      '- Keep outputs SHORT: SKILL.md <120 lines, each script <80 lines. Verbose output will be truncated.\n',
       '- Focus only on code relevant to the objective.\n',
       tree.truncated
         ? '- Repository tree was truncated by GitHub API; prioritize key files and mention any assumptions.\n'
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
           }),
         },
         stopWhen: [stepCountIs(28), hasToolCall('createSkillFiles')],
-        maxOutputTokens: 16000,
+        maxOutputTokens: 48000,
         onStepFinish: (stepResult) => {
           try {
             const toolCalls = stepResult.toolCalls.map((tc) => ({
