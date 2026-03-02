@@ -1,13 +1,14 @@
-# GitHub to Skill Converter
+# Script Extractor Skill Creator
 
-A simple Next.js application that converts GitHub repositories into Agent skills. Enter a repository in the format `owner/repo` and get a generated Agent skill file.
+A Next.js application that converts GitHub repositories into script-oriented AI skills. Enter a repository and objective (for example, "extract dither generation"), and the app generates a skill package with runnable scripts, SKILL.md guidance, and source mapping.
 
 ## Features
 
 - Simple hero page with input form
-- Automatic fetching of repository file tree and README
-- Skill generation using OpenRouter API
-- Download generated skill as SKILL.md file
+- Automatic fetching of repository tree and README
+- Objective-driven script extraction using OpenRouter API
+- Generates multi-file skill packages (\`SKILL.md\`, \`scripts/*\`, \`references/source-map.md\`)
+- Download generated skill as ZIP
 
 ## Getting Started
 
@@ -49,18 +50,20 @@ pnpm dev
 
 ## Usage
 
-1. Enter a GitHub repository in the format `owner/repo` (e.g., `facebook/react`)
-2. Click "Generate Skill"
+1. Enter a GitHub repository URL or `owner/repo` (e.g., `https://github.com/vercel-labs/dither`)
+2. Optionally describe the capability to extract (e.g., "create a skill that turns images into dither art")
+3. Click "Extract Skill"
 3. Wait for the skill to be generated
-4. Review the generated skill
-5. Download as SKILL.md if needed
+4. Review the generated skill package
+5. Download as ZIP
 
 ## How It Works
 
-1. **GitHub API**: Fetches the repository's file tree (root level) and README.md
-2. **OpenRouter API**: Sends the repository information to OpenRouter with a system prompt
-3. **Skill Generation**: Generates an Agent skill following SKILL.md format
-4. **Display**: Shows the generated skill with download option
+1. **GitHub API**: Fetches repository tree and README for context
+2. **OpenRouter API**: Explores the repo through tools and identifies relevant implementation files
+3. **Script Extraction**: Produces runnable script resources and a SKILL.md usage guide
+4. **Source Mapping**: Generates provenance notes linking source files to extracted scripts
+5. **Display/Download**: Shows SKILL.md preview and allows ZIP download
 
 ## Project Structure
 
@@ -68,8 +71,8 @@ pnpm dev
 gittoskill/
 ├── app/
 │   ├── page.tsx              # Hero page with input form
-│   ├── generate/
-│   │   └── page.tsx          # Page to display generated skill
+│   ├── [owner]/[repo]/
+│   │   └── page.tsx          # Page to display generated skill package
 │   ├── api/
 │   │   └── generate-skill/
 │   │       └── route.ts      # API route that generates skills
@@ -80,17 +83,23 @@ gittoskill/
 
 ## API Endpoints
 
-### GET /api/generate-skill?repo=owner/repo
+### POST /api/generate-skill
 
 Generates an Agent skill from a GitHub repository.
 
-**Query Parameters:**
-- `repo` (required): GitHub repository in format `owner/repo`
+**Request Body:**
+- `owner` (required): GitHub owner/org
+- `repo` (required): GitHub repository name
+- `prompt` (optional): extraction objective
 
 **Response:**
 ```json
 {
-  "skill": "Generated SKILL.md content"
+  "files": [
+    { "path": "SKILL.md", "content": "..." },
+    { "path": "scripts/extract_feature.py", "content": "..." },
+    { "path": "references/source-map.md", "content": "..." }
+  ]
 }
 ```
 

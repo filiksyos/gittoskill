@@ -1,273 +1,222 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server'
+import { generateText, stepCountIs, hasToolCall } from 'ai'
+import { createOpenRouter } from '@openrouter/ai-sdk-provider'
+import { SYSTEM_PROMPT } from '@/lib/system-prompt'
+import { getFileTreeTool } from '@/lib/tools/get-file-tree'
+import { readFilesTool } from '@/lib/tools/read-files'
+import { createSkillFilesTool } from '@/lib/tools/create-skill-files'
+import { getFileTree, getReadme } from '@/lib/github-client'
+import { formatAsFilteredTree } from '@/lib/file-tree-formatter'
+import { serverLog } from '@/lib/server-log'
 
-const SYSTEM_PROMPT = `You are a skill generator for AI agents. Generate an Agent skill (SKILL.md format) from the provided GitHub repository.
+const openrouter = createOpenRouter({
+  apiKey: process.env.OPENROUTER_API_KEY,
+})
 
-Requirements:
-- The skill MUST start with --- (three dashes) for YAML frontmatter
-- Do NOT wrap the content in code blocks. Output the raw SKILL.md content.
-- YAML frontmatter with name (lowercase, hyphens) and description (third person, specific, includes trigger terms)
-- Markdown body with essential instructions only
-- Keep under 500 lines
-- Focus on what the repository does and how to use it as a skill
-- Be concise - only include necessary information
+const inFlight = new Map<string, Promise<{ files: Array<{ path: string; content: string }> } | NextResponse>>()
+const DEFAULT_EXTRACTION_OBJECTIVE =
+  'Extract the repository logic into reusable, runnable scripts and create a skill that tells an AI agent which script to use, what inputs are required, and how to validate results.'
 
-Example format:
----
-name: example-skill
-description: Example skill description
----
-
-# Skill Title
-
-Content here...
-
-Generate the complete SKILL.md content starting with ---.`;
-
-interface GitHubTreeItem {
-  path: string;
-  type: string;
-  sha: string;
+function cacheKey(owner: string, repo: string, prompt?: string) {
+  return `${owner}/${repo}|${prompt ?? ''}`
 }
 
-interface GitHubTreeResponse {
-  tree: GitHubTreeItem[];
-  truncated?: boolean;
-}
-
-interface GitHubContentResponse {
-  content: string;
-  encoding: string;
-}
-
-function extractOwnerRepo(input: string): { owner: string; repo: string } | null {
-  if (!input || typeof input !== 'string') {
-    return null;
-  }
-
-  const trimmed = input.trim();
-
-  // Match GitHub URLs: https://github.com/owner/repo, https://www.github.com/owner/repo, github.com/owner/repo
-  // Also handles URLs with trailing slashes or paths
-  const urlPattern = /(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+)(?:\/.*)?$/i;
-  const urlMatch = trimmed.match(urlPattern);
-  
-  if (urlMatch) {
-    return {
-      owner: urlMatch[1],
-      repo: urlMatch[2].replace(/\.git$/, ''), // Remove .git suffix if present
-    };
-  }
-
-  // Match owner/repo format
-  const repoPattern = /^([\w.-]+)\/([\w.-]+)$/;
-  const repoMatch = trimmed.match(repoPattern);
-  
-  if (repoMatch) {
-    return {
-      owner: repoMatch[1],
-      repo: repoMatch[2],
-    };
-  }
-
-  return null;
-}
-
-async function getFileTree(owner: string, repo: string, branch: string): Promise<string> {
-  try {
-    // Get branch SHA first
-    const branchResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/branches/${branch}`,
-      { headers: { 'Accept': 'application/vnd.github.v3+json' } }
-    );
-
-    if (!branchResponse.ok) {
-      throw new Error(`Failed to fetch branch: ${branchResponse.statusText}`);
-    }
-
-    const branchData = await branchResponse.json();
-    const treeSha = branchData.commit.commit.tree.sha;
-
-    // Get the tree recursively
-    const treeResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/git/trees/${treeSha}?recursive=1`,
-      { headers: { 'Accept': 'application/vnd.github.v3+json' } }
-    );
-
-    if (!treeResponse.ok) {
-      throw new Error(`Failed to fetch tree: ${treeResponse.statusText}`);
-    }
-
-    const treeData: GitHubTreeResponse = await treeResponse.json();
-
-    // Filter to root level only (depth 1)
-    const rootItems = treeData.tree.filter(item => {
-      const depth = item.path.split('/').length;
-      return depth === 1;
-    });
-
-    // Format as simple directory structure
-    const directories = rootItems
-      .filter(item => item.type === 'tree')
-      .map(item => item.path);
-    const files = rootItems
-      .filter(item => item.type === 'blob')
-      .map(item => item.path);
-
-    let structure = `${repo}/\n`;
-    directories.forEach(dir => {
-      structure += `├── ${dir}/\n`;
-    });
-    files.forEach((file, index) => {
-      const isLast = index === files.length - 1 && directories.length === 0;
-      structure += `${isLast ? '└──' : '├──'} ${file}\n`;
-    });
-
-    return structure;
-  } catch (error) {
-    throw new Error(`Failed to get file tree: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
-async function getReadme(owner: string, repo: string): Promise<string> {
-  try {
-    const response = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents/README.md`,
-      { headers: { 'Accept': 'application/vnd.github.v3+json' } }
-    );
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        return 'No README.md found in repository.';
-      }
-      throw new Error(`Failed to fetch README: ${response.statusText}`);
-    }
-
-    const data: GitHubContentResponse = await response.json();
-    
-    if (data.encoding === 'base64') {
-      return Buffer.from(data.content, 'base64').toString('utf-8');
-    }
-    
-    return data.content;
-  } catch (error) {
-    throw new Error(`Failed to get README: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
-async function generateSkill(fileTree: string, readme: string): Promise<string> {
-  const openRouterApiKey = process.env.OPENROUTER_API_KEY;
-
-  if (!openRouterApiKey) {
-    throw new Error('OPENROUTER_API_KEY environment variable is not set');
-  }
-
-  const userMessage = `Generate an Agent skill for this repository:
-
-File Tree:
-\`\`\`
-${fileTree}
-\`\`\`
-
-README:
-\`\`\`
-${readme}
-\`\`\``;
-
-  try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openRouterApiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-      },
-      body: JSON.stringify({
-        model: 'openai/gpt-4.1',
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userMessage }
-        ],
-        temperature: 0.7,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(`OpenRouter API error: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`);
-    }
-
-    const data = await response.json();
-    const skill = data.choices?.[0]?.message?.content;
-
-    if (!skill) {
-      throw new Error('No skill content in OpenRouter response');
-    }
-
-    return skill;
-  } catch (error) {
-    throw new Error(`Failed to generate skill: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
-export async function GET(request: NextRequest) {
-  try {
-    const searchParams = request.nextUrl.searchParams;
-    const repoParam = searchParams.get('repo');
-
-    if (!repoParam) {
-      return NextResponse.json(
-        { error: 'Missing repo parameter. Please provide a GitHub repository URL or in the format: owner/repo (e.g., https://github.com/facebook/react or facebook/react)' },
-        { status: 400 }
-      );
-    }
-
-    // Extract owner/repo from URL or owner/repo format
-    const extracted = extractOwnerRepo(repoParam);
-
-    if (!extracted) {
-      return NextResponse.json(
-        { error: 'Invalid repo format. Please provide a GitHub repository URL (e.g., https://github.com/owner/repo) or in the format: owner/repo (e.g., facebook/react)' },
-        { status: 400 }
-      );
-    }
-
-    const { owner, repo } = extracted;
-
-    // Start fetching README immediately since it doesn't depend on branch
-    const readmePromise = getReadme(owner, repo);
-
-    // Try main branch first, fallback to master
-    let fileTree: string;
-    let branch = 'main';
-    
-    try {
-      fileTree = await getFileTree(owner, repo, branch);
-    } catch (error) {
-      // Try master branch if main fails
-      branch = 'master';
-      try {
-        fileTree = await getFileTree(owner, repo, branch);
-      } catch (masterError) {
-        return NextResponse.json(
-          { error: `Failed to fetch repository "${owner}/${repo}". Please check that the repository exists and is accessible. Error: ${error instanceof Error ? error.message : 'Unknown error'}` },
-          { status: 404 }
-        );
-      }
-    }
-
-    // Wait for README to complete (may already be done)
-    const readme = await readmePromise;
-
-    // Generate skill
-    const skill = await generateSkill(fileTree, readme);
-
-    return NextResponse.json({ skill });
-  } catch (error) {
-    console.error('Error generating skill:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to generate skill';
+export async function POST(request: NextRequest) {
+  if (!process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY.trim() === '') {
     return NextResponse.json(
-      { error: `Failed to generate skill. ${errorMessage}. Please try again or check that the repository is valid.` },
+      {
+        error:
+          'OPENROUTER_API_KEY is missing. Add it to .env.local and restart the dev server.',
+      },
       { status: 500 }
-    );
+    )
+  }
+
+  let body: { owner?: string; repo?: string; prompt?: string }
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json(
+      { error: 'Invalid JSON body' },
+      { status: 400 }
+    )
+  }
+
+  const { owner, repo, prompt } = body
+
+  if (
+    !owner ||
+    typeof owner !== 'string' ||
+    owner.trim() === '' ||
+    !repo ||
+    typeof repo !== 'string' ||
+    repo.trim() === ''
+  ) {
+    return NextResponse.json(
+      { error: 'owner and repo are required non-empty strings' },
+      { status: 400 }
+    )
+  }
+
+  if (prompt !== undefined && typeof prompt !== 'string') {
+    return NextResponse.json(
+      { error: 'prompt must be a string when provided' },
+      { status: 400 }
+    )
+  }
+
+  const normalizedPrompt = prompt?.trim() ?? ''
+  const effectivePrompt = normalizedPrompt || DEFAULT_EXTRACTION_OBJECTIVE
+  const key = cacheKey(owner, repo, effectivePrompt)
+  const existing = inFlight.get(key)
+  if (existing) {
+    console.log('[generate-skill] Dedup: waiting for in-flight', key)
+    const out = await existing
+    return out instanceof NextResponse ? out : NextResponse.json({ files: out.files }, { status: 200 })
+  }
+
+  serverLog.request(owner, repo, effectivePrompt)
+
+  const promise = (async () => {
+    let tree: { tree: Array<{ path: string; type: string }>; truncated: boolean }
+    let readme: string
+
+    try {
+      ;[tree, readme] = await Promise.all([
+        getFileTree(owner, repo),
+        getReadme(owner, repo),
+      ])
+      serverLog.githubOk(tree.tree.length, tree.truncated, readme.length)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      const status = message.toLowerCase().includes('not found') ? 404 : 500
+      return NextResponse.json({ error: message }, { status })
+    }
+
+    const depth1Tree = formatAsFilteredTree(
+      tree.tree,
+      `${owner}/${repo}`,
+      undefined,
+      1
+    )
+
+    let capturedFiles: Array<{ path: string; content: string }> = []
+    let didCaptureFiles = false
+    let stepIndex = 0
+    let totalSteps = 0
+    let totalUsage: unknown
+
+    const initialMessage = [
+      '## Repository root structure (depth 1)\n\n```',
+      depth1Tree,
+      '```',
+      '\n\n## README\n\n',
+      readme
+        ? '```\n' + readme + '\n```'
+        : '*(No README.md or empty)*',
+      '\n\n## Objective\n\n',
+      effectivePrompt,
+      '\n\n## Output contract\n\n',
+      '- Produce a skill package with SKILL.md, at least one scripts/* file, and references/source-map.md.\n',
+      '- Keep outputs concise and runnable.\n',
+      '- Focus only on code relevant to the objective.\n',
+      tree.truncated
+        ? '- Repository tree was truncated by GitHub API; prioritize key files and mention any assumptions.\n'
+        : '',
+    ].join('')
+
+    try {
+      const result = await generateText({
+        model: openrouter.chat('anthropic/claude-sonnet-4-5'),
+        system: SYSTEM_PROMPT,
+        prompt: initialMessage,
+        tools: {
+          getFileTree: getFileTreeTool,
+          readFiles: readFilesTool,
+          createSkillFiles: createSkillFilesTool((files) => {
+            capturedFiles = files
+            didCaptureFiles = true
+          }),
+        },
+        stopWhen: [stepCountIs(18), hasToolCall('createSkillFiles')],
+        maxOutputTokens: 12000,
+        onStepFinish: (stepResult) => {
+          try {
+            const toolCalls = stepResult.toolCalls.map((tc) => ({
+              toolName: tc.toolName,
+              args: tc.input,
+            }))
+            const toolResults = stepResult.toolResults.map((tr) => ({
+              toolName: tr.toolName,
+              resultPreview:
+                typeof tr.output === 'string'
+                  ? tr.output
+                  : JSON.stringify(tr.output).slice(0, 200),
+            }))
+            serverLog.stepFinish(
+              ++stepIndex,
+              toolCalls,
+              toolResults,
+              stepResult.finishReason ?? 'unknown',
+              stepResult.usage
+                ? {
+                    inputTokens: stepResult.usage.inputTokens,
+                    outputTokens: stepResult.usage.outputTokens,
+                    totalTokens: stepResult.usage.totalTokens,
+                  }
+                : undefined
+            )
+          } catch (logErr) {
+            console.error('[generate-skill] (log error)', logErr)
+          }
+        },
+      })
+      totalSteps = result.steps.length
+      totalUsage = result.totalUsage
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      const stack = error instanceof Error ? error.stack : undefined
+      serverLog.generateError(message, stack)
+      const lower = message.toLowerCase()
+      const isAuthError =
+        lower.includes('missing authentication') ||
+        lower.includes('authentication') ||
+        lower.includes('unauthorized') ||
+        lower.includes('invalid api key')
+
+      return NextResponse.json(
+        {
+          error: isAuthError
+            ? 'Skill generation failed: OpenRouter authentication failed. Verify OPENROUTER_API_KEY in .env.local and restart the dev server.'
+            : `Skill generation failed: ${message}`,
+        },
+        { status: 500 }
+      )
+    }
+
+    if (!didCaptureFiles) {
+      serverLog.noFilesProduced()
+      return NextResponse.json(
+        { error: 'Agent did not produce skill files.' },
+        { status: 500 }
+      )
+    }
+    const finalizedFiles = capturedFiles
+
+    serverLog.success(
+      finalizedFiles.length,
+      finalizedFiles.map((f) => f.path),
+      totalSteps,
+      totalUsage
+    )
+    return { files: finalizedFiles }
+  })()
+
+  inFlight.set(key, promise)
+  try {
+    const out = await promise
+    return out instanceof NextResponse ? out : NextResponse.json({ files: out.files }, { status: 200 })
+  } finally {
+    inFlight.delete(key)
   }
 }
