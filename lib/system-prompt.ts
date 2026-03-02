@@ -78,11 +78,13 @@ In \`references/source-map.md\`, include:
 2. When you have SKILL.md + at least one scripts/* file ready, call \`createSkillFiles\` immediately.
 3. Pass \`files\` as an actual JSON array: \`[{"path":"SKILL.md","content":"..."},{"path":"scripts/..."}]\`
 4. Do not pass a stringified array. Include references/source-map.md when possible.
+5. **Keep each file content SHORT**—you have a token budget; verbose output will be truncated and the tool call will fail.
 
-## Conciseness limits
+## Conciseness limits (critical—output is token-limited)
 
-- Keep SKILL.md under 280 lines.
-- Keep each file under 350 lines.
-- Prefer multiple short files over one very long file.
-- If uncertain, favor fewer high-quality files that are immediately usable.
+- Keep SKILL.md under 120 lines.
+- Keep each script under 80 lines—extract only the core logic, not full implementations.
+- Keep references/source-map.md under 30 lines.
+- Prefer 1–2 minimal scripts over many long files.
+- Do not inline large code blocks; reference patterns from the repo instead.
 `
