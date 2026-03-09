@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import JSZip from 'jszip';
 import useSWR from 'swr';
@@ -10,12 +10,15 @@ type GeneratedSkillResponse = {
 };
 
 const generateSkillFetcher = async (
-  [, owner, repo, prompt]: readonly [string, string, string, string]
+  [, owner, repo, prompt, provider, apiKey]: readonly [string, string, string, string, string?, string?]
 ): Promise<GeneratedSkillResponse> => {
+  const body: Record<string, string> = { owner, repo, prompt };
+  if (provider) body.provider = provider;
+  if (apiKey) body.apiKey = apiKey;
   const response = await fetch('/api/generate-skill', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ owner, repo, prompt }),
+    body: JSON.stringify(body),
   });
 
   let payload: unknown = null;
@@ -54,9 +57,20 @@ function GenerateContent() {
   const owner = params.owner as string;
   const repo = params.repo as string;
   const prompt = searchParams.get('prompt') ?? '';
+  const [byok, setByok] = useState<{ provider?: string; apiKey?: string } | null>(null);
+  useEffect(() => {
+    setByok({
+      provider: sessionStorage.getItem('byok-provider') ?? undefined,
+      apiKey: sessionStorage.getItem('byok-api-key') ?? undefined,
+    });
+  }, []);
   const repoParam = owner && repo ? `${owner}/${repo}` : '';
+  const swrKey =
+    repoParam && byok !== null
+      ? (['generate-skill', owner, repo, prompt, byok.provider ?? '', byok.apiKey ?? ''] as const)
+      : null;
   const { data, error, isLoading } = useSWR<GeneratedSkillResponse, Error>(
-    repoParam ? ['generate-skill', owner, repo, prompt] : null,
+    swrKey,
     generateSkillFetcher,
     {
       revalidateOnFocus: false,
@@ -132,7 +146,7 @@ function GenerateContent() {
     );
   }
 
-  if (isLoading) {
+  if (byok === null || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
         <main className="flex flex-col items-center gap-4">
