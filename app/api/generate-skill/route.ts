@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { generateText, stepCountIs, hasToolCall } from 'ai'
-import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { SYSTEM_PROMPT } from '@/lib/system-prompt'
 import { getFileTreeTool } from '@/lib/tools/get-file-tree'
 import { readFilesTool } from '@/lib/tools/read-files'
@@ -8,31 +7,36 @@ import { createSkillFilesTool } from '@/lib/tools/create-skill-files'
 import { getFileTree, getReadme } from '@/lib/github-client'
 import { formatAsFilteredTree } from '@/lib/file-tree-formatter'
 import { serverLog } from '@/lib/server-log'
-
-const openrouter = createOpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY,
-})
+import {
+  getModelForProvider,
+  validateProvider,
+  PROVIDER_CONFIG,
+  type ProviderId,
+} from '@/lib/llm-providers'
 
 const inFlight = new Map<string, Promise<{ files: Array<{ path: string; content: string }> } | NextResponse>>()
 const DEFAULT_EXTRACTION_OBJECTIVE =
   'Extract the repository logic into reusable, runnable scripts and create a skill that tells an AI agent which script to use, what inputs are required, and how to validate results.'
 
-function cacheKey(owner: string, repo: string, prompt?: string) {
-  return `${owner}/${repo}|${prompt ?? ''}`
+function cacheKey(
+  owner: string,
+  repo: string,
+  prompt?: string,
+  provider?: ProviderId,
+  hasUserKey?: boolean
+) {
+  if (hasUserKey) return null
+  return `${owner}/${repo}|${prompt ?? ''}|${provider ?? 'openrouter'}`
 }
 
 export async function POST(request: NextRequest) {
-  if (!process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY.trim() === '') {
-    return NextResponse.json(
-      {
-        error:
-          'OPENROUTER_API_KEY is missing. Add it to .env.local and restart the dev server.',
-      },
-      { status: 500 }
-    )
+  let body: {
+    owner?: string
+    repo?: string
+    prompt?: string
+    provider?: unknown
+    apiKey?: string
   }
-
-  let body: { owner?: string; repo?: string; prompt?: string }
   try {
     body = await request.json()
   } catch {
@@ -42,7 +46,19 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { owner, repo, prompt } = body
+  const { owner, repo, prompt, provider: providerRaw, apiKey: userApiKey } = body
+
+  const provider: ProviderId = validateProvider(providerRaw)
+    ? providerRaw
+    : 'openrouter'
+
+  let model
+  try {
+    model = getModelForProvider(provider, userApiKey)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
 
   if (
     !owner ||
@@ -67,8 +83,9 @@ export async function POST(request: NextRequest) {
 
   const normalizedPrompt = prompt?.trim() ?? ''
   const effectivePrompt = normalizedPrompt || DEFAULT_EXTRACTION_OBJECTIVE
-  const key = cacheKey(owner, repo, effectivePrompt)
-  const existing = inFlight.get(key)
+  const hasUserKey = typeof userApiKey === 'string' && userApiKey.trim().length > 0
+  const key = cacheKey(owner, repo, effectivePrompt, provider, hasUserKey)
+  const existing = key ? inFlight.get(key) : undefined
   if (existing) {
     console.log('[generate-skill] Dedup: waiting for in-flight', key)
     const out = await existing
@@ -128,7 +145,7 @@ export async function POST(request: NextRequest) {
 
     try {
       const result = await generateText({
-        model: openrouter.chat('anthropic/claude-sonnet-4.5'),
+        model,
         system: SYSTEM_PROMPT,
         prompt: initialMessage,
         tools: {
@@ -185,10 +202,11 @@ export async function POST(request: NextRequest) {
         lower.includes('unauthorized') ||
         lower.includes('invalid api key')
 
+      const providerLabel = PROVIDER_CONFIG[provider]?.label ?? provider
       return NextResponse.json(
         {
           error: isAuthError
-            ? 'Skill generation failed: OpenRouter authentication failed. Verify OPENROUTER_API_KEY in .env.local and restart the dev server.'
+            ? `Skill generation failed: ${providerLabel} authentication failed. Verify your API key or ${PROVIDER_CONFIG[provider]?.keyEnv} in .env.local.`
             : `Skill generation failed: ${message}`,
         },
         { status: 500 }
@@ -213,11 +231,11 @@ export async function POST(request: NextRequest) {
     return { files: finalizedFiles }
   })()
 
-  inFlight.set(key, promise)
+  if (key) inFlight.set(key, promise)
   try {
     const out = await promise
     return out instanceof NextResponse ? out : NextResponse.json({ files: out.files }, { status: 200 })
   } finally {
-    inFlight.delete(key)
+    if (key) inFlight.delete(key)
   }
 }
