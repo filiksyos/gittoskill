@@ -1,7 +1,5 @@
 /**
- * GitHub API Client
- *
- * Module-level async functions using native fetch.
+ * GitHub API Client — native fetch.
  */
 
 const GITHUB_API = 'https://api.github.com'
@@ -37,8 +35,54 @@ interface GitHubBranchResponse {
 }
 
 interface GitHubContentsResponse {
-  content: string
-  encoding: string
+  content?: string
+  encoding?: string
+  download_url?: string | null
+  type?: string
+}
+
+export interface RepoMeta {
+  description: string | null
+  stargazers_count: number
+  language: string | null
+  topics: string[]
+  default_branch: string
+}
+
+interface GitHubRepoResponse {
+  description: string | null
+  stargazers_count: number
+  language: string | null
+  topics?: string[]
+  default_branch: string
+}
+
+export async function getRepoMeta(owner: string, repo: string): Promise<RepoMeta> {
+  const res = await fetch(`${GITHUB_API}/repos/${owner}/${repo}`, {
+    headers: githubHeaders(),
+  })
+
+  if (res.status === 401) {
+    throw new Error('GitHub authentication failed. Check GITHUB_TOKEN.')
+  }
+  if (res.status === 403) {
+    throw new Error('GitHub API rate limit exceeded or access denied.')
+  }
+  if (res.status === 404) {
+    throw new Error(`Repository ${owner}/${repo} not found.`)
+  }
+  if (!res.ok) {
+    throw new Error(`GitHub API error: ${res.status} ${res.statusText}`)
+  }
+
+  const data = (await res.json()) as GitHubRepoResponse
+  return {
+    description: data.description,
+    stargazers_count: data.stargazers_count,
+    language: data.language,
+    topics: data.topics ?? [],
+    default_branch: data.default_branch,
+  }
 }
 
 export async function getFileTree(
@@ -66,7 +110,9 @@ export async function getFileTree(
       throw new Error(`Repository ${owner}/${repo} or branch ${b} not found.`)
     }
     if (!branchRes.ok) {
-      throw new Error(`GitHub API error: ${branchRes.status} ${branchRes.statusText}`)
+      throw new Error(
+        `GitHub API error: ${branchRes.status} ${branchRes.statusText}`
+      )
     }
 
     const branchData = (await branchRes.json()) as GitHubBranchResponse
@@ -126,8 +172,24 @@ export async function readFile(
       throw new Error(`GitHub API error: ${res.status} ${res.statusText}`)
     }
 
-    const data = (await res.json()) as GitHubContentsResponse
-    return Buffer.from(data.content, 'base64').toString('utf-8')
+    const parsed: unknown = await res.json()
+    if (Array.isArray(parsed)) {
+      throw new Error(`Path ${path} is a directory, not a file.`)
+    }
+    const data = parsed as GitHubContentsResponse
+    if (data.content && data.encoding === 'base64') {
+      return Buffer.from(data.content, 'base64').toString('utf-8')
+    }
+    if (data.download_url) {
+      const raw = await fetch(data.download_url, { headers: githubHeaders() })
+      if (!raw.ok) {
+        throw new Error(
+          `Could not download file content: ${raw.status} ${raw.statusText}`
+        )
+      }
+      return await raw.text()
+    }
+    throw new Error(`File ${path} has no readable content in API response.`)
   }
 
   return doFetch(branch, false)
@@ -161,8 +223,24 @@ export async function getReadme(
       throw new Error(`GitHub API error: ${res.status} ${res.statusText}`)
     }
 
-    const data = (await res.json()) as GitHubContentsResponse
-    return Buffer.from(data.content, 'base64').toString('utf-8')
+    const parsed: unknown = await res.json()
+    if (Array.isArray(parsed)) {
+      return ''
+    }
+    const data = parsed as GitHubContentsResponse
+    if (data.content && data.encoding === 'base64') {
+      return Buffer.from(data.content, 'base64').toString('utf-8')
+    }
+    if (data.download_url) {
+      const raw = await fetch(data.download_url, { headers: githubHeaders() })
+      if (!raw.ok) {
+        throw new Error(
+          `Could not download README: ${raw.status} ${raw.statusText}`
+        )
+      }
+      return await raw.text()
+    }
+    return ''
   }
 
   return doFetch(branch, false)
