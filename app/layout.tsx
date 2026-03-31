@@ -16,9 +16,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Script Extractor Skill Creator",
-  description: "Extract runnable scripts from GitHub repos into AI skills",
-};
+  title: 'GitToSkill',
+  description:
+    'Turn a public GitHub repository into a Cursor skill folder: SKILL.md plus references/ from the GitHub API.',
+}
 
 export default function RootLayout({
   children,
