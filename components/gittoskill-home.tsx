@@ -1,7 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import JSZip from 'jszip'
+import { useState } from 'react'
 import { parseGitHubRepoInput } from '@/lib/parse-github-repo'
 
 const EXAMPLES = [
@@ -11,142 +10,41 @@ const EXAMPLES = [
   { label: 'Supabase', url: 'https://github.com/supabase/supabase' },
 ] as const
 
-type SkillReferenceFile = { path: string; content: string }
-
-type GenerateSkillResponse = {
-  skillDirectoryName?: string
-  skillMarkdown?: string
-  references?: SkillReferenceFile[]
-  treeTruncated?: boolean
-  error?: string
-}
-
 type GittoskillHomeProps = {
   initialRepoInput?: string
-  autoSubmit?: boolean
 }
 
-type TabId = 'skill' | 'references'
-
-export function GittoskillHome({
-  initialRepoInput = '',
-  autoSubmit = false,
-}: GittoskillHomeProps) {
+export function GittoskillHome({ initialRepoInput = '' }: GittoskillHomeProps) {
   const [repoUrl, setRepoUrl] = useState(initialRepoInput)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [skillMarkdown, setSkillMarkdown] = useState('')
-  const [skillDirectoryName, setSkillDirectoryName] = useState('')
-  const [references, setReferences] = useState<SkillReferenceFile[]>([])
-  const [treeTruncated, setTreeTruncated] = useState(false)
-  const [activeTab, setActiveTab] = useState<TabId>('skill')
-  const [copiedKey, setCopiedKey] = useState<string | null>(null)
-  const resultsRef = useRef<HTMLDivElement | null>(null)
-  const autoSubmitStartedRef = useRef(false)
-
-  const runGenerateSkill = useCallback(async (input: string) => {
-    setError(null)
-    setSkillMarkdown('')
-    setSkillDirectoryName('')
-    setReferences([])
-    setTreeTruncated(false)
-    setActiveTab('skill')
-    setCopiedKey(null)
-    setLoading(true)
-    try {
-      const res = await fetch('/api/generate-skill', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repoUrl: input }),
-      })
-      const data = (await res.json()) as GenerateSkillResponse
-      if (!res.ok) {
-        setError(data.error ?? `Request failed (${res.status})`)
-        return
-      }
-      if (typeof data.skillMarkdown === 'string') {
-        setSkillMarkdown(data.skillMarkdown)
-        setSkillDirectoryName(data.skillDirectoryName ?? '')
-        setReferences(Array.isArray(data.references) ? data.references : [])
-        setTreeTruncated(Boolean(data.treeTruncated))
-        const parsed = parseGitHubRepoInput(input)
-        if (parsed && typeof window !== 'undefined') {
-          window.history.replaceState(
-            null,
-            '',
-            `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`
-          )
-        }
-      } else {
-        setError('No skill output in response.')
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Request failed')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const [copied, setCopied] = useState(false)
+  const parsed = parseGitHubRepoInput(repoUrl)
+  const normalizedRepo = parsed ? `${parsed.owner}/${parsed.repo}` : ''
+  const command = parsed ? `npx gittoskill add ${normalizedRepo}` : ''
+  const error =
+    repoUrl.trim().length > 0 && !parsed
+      ? 'Enter a GitHub URL like https://github.com/owner/repo or owner/repo.'
+      : null
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    void runGenerateSkill(repoUrl.trim())
+    if (!parsed || typeof window === 'undefined') return
+    window.history.replaceState(
+      null,
+      '',
+      `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`
+    )
   }
 
-  useEffect(() => {
-    if (!autoSubmit || autoSubmitStartedRef.current) return
-    const trimmed = initialRepoInput?.trim() ?? ''
-    if (!trimmed || !parseGitHubRepoInput(trimmed)) return
-    autoSubmitStartedRef.current = true
-    void runGenerateSkill(trimmed)
-  }, [autoSubmit, initialRepoInput, runGenerateSkill])
-
-  useEffect(() => {
-    if (!skillMarkdown) return
-    const id = requestAnimationFrame(() => {
-      resultsRef.current?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-      })
-    })
-    return () => cancelAnimationFrame(id)
-  }, [skillMarkdown])
-
-  async function copyFile(path: string, content: string) {
+  async function copyCommand() {
+    if (!command) return
     try {
-      await navigator.clipboard.writeText(content)
-      setCopiedKey(path)
-      window.setTimeout(() => setCopiedKey(null), 2000)
+      await navigator.clipboard.writeText(command)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
     } catch {
-      setError('Could not copy to clipboard.')
+      setCopied(false)
     }
   }
-
-  async function downloadZip() {
-    if (!skillDirectoryName || !skillMarkdown) return
-    try {
-      const zip = new JSZip()
-      const root = zip.folder(skillDirectoryName)
-      if (!root) return
-      root.file('SKILL.md', skillMarkdown)
-      for (const file of references) {
-        const rel = file.path.replace(/^references\//, '')
-        root.file(`references/${rel}`, file.content)
-      }
-      const blob = await zip.generateAsync({ type: 'blob' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${skillDirectoryName}.zip`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch {
-      setError('Could not build ZIP download.')
-    }
-  }
-
-  const hasResults = Boolean(skillMarkdown)
 
   return (
     <div id="main-content" className="min-h-screen bg-[#FFFDF8] text-zinc-900">
@@ -156,7 +54,7 @@ export function GittoskillHome({
             <span className="text-zinc-900">Git</span>
             <span className="text-[#d31611]">ToSkill</span>
           </span>
-          <span className="text-sm text-zinc-600">GitHub → Cursor skill</span>
+          <span className="text-sm text-zinc-600">GitHub → installable skill</span>
         </div>
       </nav>
 
@@ -168,10 +66,10 @@ export function GittoskillHome({
             </h1>
             <p className="mt-4 max-w-xl text-lg text-zinc-600">
               Paste a public GitHub repo URL or{' '}
-              <span className="whitespace-nowrap">owner/repo</span>. Builds{' '}
-              <code className="text-zinc-800">SKILL.md</code> and{' '}
-              <code className="text-zinc-800">references/</code> from the GitHub
-              API only — no external model calls.
+              <span className="whitespace-nowrap">owner/repo</span>. GitToSkill
+              returns the exact command to clone the repo locally, generate a
+              root <code className="text-zinc-800">SKILL.md</code>, and install
+              it through <code className="text-zinc-800">skills add</code>.
             </p>
           </div>
 
@@ -196,13 +94,9 @@ export function GittoskillHome({
                 </div>
                 <button
                   type="submit"
-                  disabled={loading}
-                  aria-busy={loading}
-                  className={`relative z-10 rounded border-[3px] border-zinc-900 px-6 py-3 font-medium text-white transition-transform disabled:pointer-events-none sm:shrink-0 ${
-                    loading ? 'bg-[#b5120e]' : 'bg-[#d31611]'
-                  }`}
+                  className="relative z-10 rounded border-[3px] border-zinc-900 bg-[#d31611] px-6 py-3 font-medium text-white transition-transform sm:shrink-0"
                 >
-                  {loading ? 'Fetching…' : 'Generate skill'}
+                  Get command
                 </button>
               </div>
 
@@ -231,103 +125,42 @@ export function GittoskillHome({
           </div>
         </div>
 
-        {hasResults ? (
-          <div
-            ref={resultsRef}
-            data-results
-            className="relative w-full max-w-2xl scroll-mt-24"
-          >
+        {command ? (
+          <div data-results className="relative w-full max-w-2xl scroll-mt-24">
             <div className="absolute inset-0 translate-x-2 translate-y-2 rounded-xl bg-zinc-900" />
             <section className="relative z-10 rounded-xl border-[3px] border-zinc-900 bg-[#fafafa] p-6">
-              {skillDirectoryName ? (
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs text-zinc-600">
-                    Install folder:{' '}
-                    <code className="rounded bg-zinc-200 px-1 py-0.5 text-zinc-800">
-                      ~/.cursor/skills/{skillDirectoryName}/
-                    </code>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                    Install command
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => void downloadZip()}
-                    className="rounded border-[3px] border-zinc-900 bg-[#ffc480] px-3 py-1.5 text-xs font-medium text-zinc-900"
-                  >
-                    Download ZIP
-                  </button>
+                  <h2 className="mt-1 text-lg font-bold text-zinc-900">
+                    {normalizedRepo}
+                  </h2>
                 </div>
-              ) : null}
-              {treeTruncated ? (
-                <p className="mb-3 text-xs text-amber-800">
-                  GitHub returned a truncated tree; root file selection may be
-                  incomplete.
-                </p>
-              ) : null}
-              <div className="mb-4 flex flex-wrap gap-2 border-b border-zinc-200 pb-3">
                 <button
                   type="button"
-                  onClick={() => setActiveTab('skill')}
-                  className={`rounded border-[3px] border-zinc-900 px-3 py-1.5 text-sm font-medium ${
-                    activeTab === 'skill'
-                      ? 'bg-[#ffc480] text-zinc-900'
-                      : 'bg-white text-zinc-700'
-                  }`}
+                  onClick={() => void copyCommand()}
+                  className="rounded border-[3px] border-zinc-900 bg-[#ffc480] px-3 py-1.5 text-xs font-medium text-zinc-900"
                 >
-                  SKILL.md
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('references')}
-                  className={`rounded border-[3px] border-zinc-900 px-3 py-1.5 text-sm font-medium ${
-                    activeTab === 'references'
-                      ? 'bg-[#ffc480] text-zinc-900'
-                      : 'bg-white text-zinc-700'
-                  }`}
-                >
-                  references/ ({references.length})
+                  {copied ? 'Copied!' : 'Copy command'}
                 </button>
               </div>
-
-              {activeTab === 'skill' ? (
-                <div>
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="text-sm font-semibold text-zinc-700">
-                      SKILL.md
-                    </h2>
-                    <button
-                      type="button"
-                      onClick={() => void copyFile('SKILL.md', skillMarkdown)}
-                      className="rounded border-[3px] border-zinc-900 bg-[#ffc480] px-3 py-1.5 text-xs font-medium text-zinc-900"
-                    >
-                      {copiedKey === 'SKILL.md' ? 'Copied!' : 'Copy'}
-                    </button>
-                  </div>
-                  <pre className="max-h-[min(70vh,32rem)] overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-200 bg-white p-4 text-sm leading-relaxed text-zinc-800">
-                    {skillMarkdown}
-                  </pre>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-6">
-                  {references.map((file) => (
-                    <div key={file.path}>
-                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                        <h3 className="font-mono text-xs font-semibold text-zinc-700">
-                          {file.path}
-                        </h3>
-                        <button
-                          type="button"
-                          onClick={() => void copyFile(file.path, file.content)}
-                          className="rounded border-[3px] border-zinc-900 bg-[#ffc480] px-3 py-1.5 text-xs font-medium text-zinc-900"
-                        >
-                          {copiedKey === file.path ? 'Copied!' : 'Copy'}
-                        </button>
-                      </div>
-                      <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-200 bg-white p-4 text-sm leading-relaxed text-zinc-800">
-                        {file.content}
-                      </pre>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <pre className="overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-200 bg-white p-4 text-sm leading-relaxed text-zinc-800">
+                {command}
+              </pre>
+              <div className="mt-4 space-y-2 text-sm text-zinc-700">
+                <p>
+                  GitToSkill does not call the GitHub REST API. The CLI clones
+                  the repository locally, writes a generated{' '}
+                  <code>SKILL.md</code> into the cloned snapshot, and then
+                  forwards installation to <code>skills add</code>.
+                </p>
+                <p>
+                  Append any normal <code>skills add</code> flags after the repo
+                  input, for example <code>{command} --agent cursor</code>.
+                </p>
+              </div>
             </section>
           </div>
         ) : null}

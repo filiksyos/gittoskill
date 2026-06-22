@@ -21,5 +21,5 @@ export default async function RepoPage({ params }: PageProps) {
   const repoNorm = normalizeRepoSegment(repo)
   const initialRepoInput = `${owner}/${repoNorm}`
 
-  return <GittoskillHome initialRepoInput={initialRepoInput} autoSubmit />
+  return <GittoskillHome initialRepoInput={initialRepoInput} />
 }
