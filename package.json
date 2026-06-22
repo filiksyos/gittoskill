@@ -1,20 +1,27 @@
 {
   "name": "gittoskill",
   "version": "0.1.0",
-  "private": true,
+  "description": "Clone a GitHub repo, reshape it into a local skill package, and install it through the skills CLI.",
+  "bin": {
+    "gittoskill": "./bin/gittoskill.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "cli:add": "node ./bin/gittoskill.mjs add"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.2.1",
     "@vercel/analytics": "^1.6.1",
-    "jszip": "^3.10.1",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "skills": "^1.5.12",
     "tailwindcss": "^4.2.1"
   },
   "devDependencies": {

@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'GitToSkill',
   description:
-    'Turn a public GitHub repository into a Cursor skill folder: SKILL.md plus references/ from the GitHub API.',
+    'Generate the exact npx gittoskill command for a GitHub repo and install it locally through the skills CLI.',
 }
 
 export default function RootLayout({

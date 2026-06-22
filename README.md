@@ -1,121 +1,77 @@
-# Script Extractor Skill Creator
+# GitToSkill
 
-A Next.js application that converts GitHub repositories into script-oriented AI skills. Enter a repository and objective (for example, "extract dither generation"), and the app generates a skill package with runnable scripts, SKILL.md guidance, and source mapping.
+GitToSkill is a CLI-first project for turning any public GitHub repository into a locally installable skill. The web app only generates the install command; the CLI does the real work.
 
-## Features
+## How it works
 
-- Simple hero page with input form
-- Automatic fetching of repository tree and README
-- Objective-driven script extraction using OpenRouter API
-- Generates multi-file skill packages (\`SKILL.md\`, \`scripts/*\`, \`references/source-map.md\`)
-- Download generated skill as ZIP
+`gittoskill add <repo>` does three things:
 
-## Getting Started
+1. Clones the target repository locally with `git clone --depth 1`
+2. Generates a root `SKILL.md` inside that cloned snapshot
+3. Invokes `skills add <local-path>` so agent selection, scope, and install mode behave the same as the upstream `skills` CLI
+
+The generated skill keeps the repository contents in place. GitToSkill adds `SKILL.md` and removes the cloned `.git` directory before handing the folder to `skills`.
+
+## Web app
+
+The Next.js app is intentionally simple. It accepts a GitHub repository URL or `owner/repo` and returns the exact command:
+
+```bash
+npx gittoskill add owner/repo
+```
+
+That means there is no preview-generation backend, no ZIP export, and no GitHub REST API dependency in the main product flow.
+
+## Local development
 
 ### Prerequisites
 
-- Node.js 18+ 
-- pnpm (or npm/yarn)
-- OpenRouter API key ([Get one here](https://openrouter.ai/))
+- Node.js 18+
+- `pnpm`
+- `git`
 
-### Installation
-
-1. Clone the repository
-2. Install dependencies:
+### Install
 
 ```bash
 pnpm install
 ```
 
-3. Create `.env.local` file:
-
-```bash
-cp .env.example .env.local
-```
-
-4. Add your OpenRouter API key to `.env.local`:
-
-```
-OPENROUTER_API_KEY=your_openrouter_api_key_here
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
-5. Run the development server:
+### Run the web app
 
 ```bash
 pnpm dev
 ```
 
-6. Open [http://localhost:3000](http://localhost:3000) in your browser
+### Run the CLI locally
 
-## Usage
-
-1. Enter a GitHub repository URL or `owner/repo` (e.g., `https://github.com/vercel-labs/dither`)
-2. Optionally describe the capability to extract (e.g., "create a skill that turns images into dither art")
-3. Click "Extract Skill"
-3. Wait for the skill to be generated
-4. Review the generated skill package
-5. Download as ZIP
-
-## How It Works
-
-1. **GitHub API**: Fetches repository tree and README for context
-2. **OpenRouter API**: Explores the repo through tools and identifies relevant implementation files
-3. **Script Extraction**: Produces runnable script resources and a SKILL.md usage guide
-4. **Source Mapping**: Generates provenance notes linking source files to extracted scripts
-5. **Display/Download**: Shows SKILL.md preview and allows ZIP download
-
-## Project Structure
-
+```bash
+pnpm cli:add -- vercel/next.js
 ```
+
+You can forward normal `skills add` flags after the repository input:
+
+```bash
+pnpm cli:add -- vercel/next.js --agent cursor --scope project
+```
+
+## Project structure
+
+```text
 gittoskill/
-├── app/
-│   ├── page.tsx              # Hero page with input form
-│   ├── [owner]/[repo]/
-│   │   └── page.tsx          # Page to display generated skill package
-│   ├── api/
-│   │   └── generate-skill/
-│   │       └── route.ts      # API route that generates skills
-│   └── layout.tsx
-├── .env.example              # Example environment variables
+├── app/                    # Next.js website that outputs the install command
+├── bin/gittoskill.mjs      # CLI wrapper around git clone + skills add
+├── components/             # Web UI
+├── lib/                    # Shared parsing helpers for the web app
 └── README.md
 ```
 
-## API Endpoints
+## Cross-platform support
 
-### POST /api/generate-skill
+The target platforms for v1 are Windows, macOS, and Linux. The implementation stays cross-platform by relying on:
 
-Generates an Agent skill from a GitHub repository.
-
-**Request Body:**
-- `owner` (required): GitHub owner/org
-- `repo` (required): GitHub repository name
-- `prompt` (optional): extraction objective
-
-**Response:**
-```json
-{
-  "files": [
-    { "path": "SKILL.md", "content": "..." },
-    { "path": "scripts/extract_feature.py", "content": "..." },
-    { "path": "references/source-map.md", "content": "..." }
-  ]
-}
-```
-
-## Environment Variables
-
-- `OPENROUTER_API_KEY`: Your OpenRouter API key (required)
-- `NEXT_PUBLIC_APP_URL`: Your app URL (optional, defaults to localhost:3000)
-
-## Technologies Used
-
-- Next.js 16
-- React 19
-- TypeScript
-- Tailwind CSS
-- GitHub REST API
-- OpenRouter API
+- Node.js standard library for filesystem/process work
+- `git` for cloning
+- `skills` for the final installation flow
 
 ## License
 
