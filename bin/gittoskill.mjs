@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process'
-import { mkdtemp, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
@@ -58,12 +58,18 @@ async function main() {
     await runCommand('git', ['clone', '--depth', '1', cloneUrl, stagingDir])
 
     await rm(path.join(stagingDir, '.git'), { recursive: true, force: true })
+    const referencesDir = await moveRepoContentsToReferences(stagingDir)
+    const repoDescription = await fetchGitHubRepoDescription({
+      owner: parsed.owner,
+      repo: parsed.repo,
+    })
 
     const skillMarkdown = await buildSkillMarkdown({
-      repoDir: stagingDir,
+      referencesDir,
       owner: parsed.owner,
       repo: parsed.repo,
       sourceUrl: cloneUrl.replace(/\.git$/i, ''),
+      repoDescription,
     })
 
     await writeFile(path.join(stagingDir, 'SKILL.md'), skillMarkdown, 'utf8')
@@ -83,6 +89,7 @@ async function main() {
     await runCommand(process.execPath, [skillsCliPath, 'add', finalSkillDir, ...forwardedArgs], {
       inheritOutput: true,
     })
+    await ensureInstalledSkillIgnored({ slug })
 
     logStep(`Done. Re-run this command anytime to refresh ${parsed.owner}/${parsed.repo}.`)
   } finally {
@@ -102,7 +109,7 @@ Examples:
 
 What it does:
   1. Clones the target GitHub repo locally
-  2. Generates a root SKILL.md inside the cloned snapshot
+  2. Moves the cloned repo into references/ and generates a root SKILL.md wrapper
   3. Invokes the skills CLI on that local folder, forwarding the remaining flags
 `)
 }
@@ -145,30 +152,16 @@ function slugSkillSegment(value) {
     .slice(0, 64)
 }
 
-async function buildSkillMarkdown({ repoDir, owner, repo, sourceUrl }) {
-  const entries = await readdir(repoDir, { withFileTypes: true })
-  const visibleEntries = entries
-    .map((entry) => entry.name)
-    .filter((name) => name !== 'SKILL.md' && name !== '.git')
-    .sort((left, right) => left.localeCompare(right))
-
-  const directories = visibleEntries.filter((name) =>
-    entries.some((entry) => entry.name === name && entry.isDirectory())
-  )
-  const files = visibleEntries.filter((name) =>
-    entries.some((entry) => entry.name === name && entry.isFile())
-  )
-
+async function buildSkillMarkdown({ referencesDir, owner, repo, sourceUrl, repoDescription }) {
+  const entries = await readdir(referencesDir, { withFileTypes: true })
+  const visibleEntries = entries.map((entry) => entry.name).sort((left, right) => left.localeCompare(right))
   const readmeName =
     visibleEntries.find((name) => README_NAMES.has(name.toLowerCase())) ?? null
   const readmeText = readmeName
-    ? await readTextIfExists(path.join(repoDir, readmeName))
+    ? await readTextIfExists(path.join(referencesDir, readmeName))
     : null
-  const packageJsonText = await readTextIfExists(path.join(repoDir, 'package.json'))
-
-  const projectSummary = summarizeProject({ owner, repo, readmeText, packageJsonText })
-  const description = buildDescription({ owner, repo, projectSummary })
-  const startHere = buildStartHere({ readmeName, directories, files })
+  const description = buildDescription({ repoDescription })
+  const readmeBody = buildReadmeBody({ owner, repo, readmeText })
 
   return [
     '---',
@@ -176,21 +169,15 @@ async function buildSkillMarkdown({ repoDir, owner, repo, sourceUrl }) {
     `description: "${escapeForYaml(description)}"`,
     '---',
     '',
-    `# ${owner}/${repo}`,
+    'This is the README.md of the repository repackaged into SKILL.md to give context about the codebase.',
     '',
-    `This skill is a locally generated snapshot of [\`${owner}/${repo}\`](${sourceUrl}). GitToSkill cloned the repository, removed its Git metadata, added this \`SKILL.md\`, and then handed installation off to the \`skills\` CLI.`,
+    'The repository code is available under `/references` in this installed skill.',
     '',
-    'Use the files in this folder directly. The original repository contents stay in place so you can inspect source code, docs, configs, and examples without switching context.',
+    `This skill is a locally generated snapshot of [\`${owner}/${repo}\`](${sourceUrl}). GitToSkill cloned the repository, moved the upstream contents into \`references/\`, removed its Git metadata, and added this \`SKILL.md\` wrapper before handing installation off to the \`skills\` CLI.`,
     '',
-    '## Project Summary',
+    readmeBody,
     '',
-    projectSummary,
-    '',
-    '## Start Here',
-    '',
-    ...startHere.map((line) => `- ${line}`),
-    '',
-    '## Refreshing',
+    '## Refresh',
     '',
     `- Re-run \`npx gittoskill add ${owner}/${repo}\` whenever you want a fresh snapshot.`,
     '- Any additional flags are forwarded to `skills add`, so agent selection, scope, and install mode behave the same as the upstream `skills` CLI.',
@@ -198,83 +185,110 @@ async function buildSkillMarkdown({ repoDir, owner, repo, sourceUrl }) {
   ].join('\n')
 }
 
-function summarizeProject({ owner, repo, readmeText, packageJsonText }) {
-  const packageDescription = readPackageDescription(packageJsonText)
-  if (packageDescription) {
-    return packageDescription
+function buildReadmeBody({ owner, repo, readmeText }) {
+  const normalizedReadme = normalizeMarkdown(readmeText)
+  if (normalizedReadme) {
+    return normalizedReadme
   }
 
-  const readmeSummary = readmeText ? extractFirstParagraph(readmeText) : ''
-  if (readmeSummary) {
-    return readmeSummary
-  }
-
-  return `Snapshot of ${owner}/${repo}. Use this skill when you want the upstream repository's files available locally as an installable skill.`
+  return [`# ${owner}/${repo}`, '', 'README.md was not available in the upstream repository.'].join('\n')
 }
 
-function readPackageDescription(packageJsonText) {
-  if (!packageJsonText) return ''
-  try {
-    const parsed = JSON.parse(packageJsonText)
-    return typeof parsed.description === 'string' ? parsed.description.trim() : ''
-  } catch {
-    return ''
-  }
+function normalizeMarkdown(text) {
+  if (!text) return ''
+  return text.replace(/\r/g, '').trim()
 }
 
-function extractFirstParagraph(readmeText) {
-  const paragraphs = readmeText
-    .replace(/\r/g, '')
-    .split('\n\n')
-    .map((chunk) => chunk.trim())
-    .filter(Boolean)
-
-  for (const paragraph of paragraphs) {
-    if (paragraph.startsWith('#')) continue
-    if (paragraph.startsWith('```')) continue
-    const collapsed = paragraph.replace(/\s+/g, ' ').trim()
-    if (collapsed) {
-      return collapsed
-    }
-  }
-
-  return ''
-}
-
-function buildDescription({ owner, repo, projectSummary }) {
-  const base = projectSummary || `Installed snapshot of ${owner}/${repo}.`
-  const suffix = ` Repository ${owner}/${repo}, cloned locally and installed via the skills CLI.`
+function buildDescription({ repoDescription }) {
+  const base = repoDescription || 'Description not available.'
+  const suffix =
+    " This is a github repo that's repackaged as a skill so it can be used as a reference for inspiration."
   const combined = `${base}${base.endsWith('.') ? '' : '.'}${suffix}`
   return combined.slice(0, 1024)
 }
 
-function buildStartHere({ readmeName, directories, files }) {
-  const lines = []
+async function fetchGitHubRepoDescription({ owner, repo }) {
+  const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'gittoskill/0.1.0',
+    },
+  }).catch(() => null)
 
-  if (readmeName) {
-    lines.push(`Read \`${readmeName}\` first for the upstream project's overview and setup details.`)
+  if (!response?.ok) {
+    return ''
   }
 
-  if (directories.length > 0) {
-    lines.push(
-      `Explore top-level directories such as ${directories
-        .slice(0, 6)
-        .map((name) => `\`${name}/\``)
-        .join(', ')}${directories.length > 6 ? ', and more.' : '.'}`
-    )
+  const payload = await response.json().catch(() => null)
+  return typeof payload?.description === 'string' ? payload.description.trim() : ''
+}
+
+async function moveRepoContentsToReferences(skillDir) {
+  const entries = await readdir(skillDir, { withFileTypes: true })
+  const referencesDir = path.join(skillDir, 'references')
+  await mkdir(referencesDir, { recursive: true })
+
+  for (const entry of entries) {
+    if (entry.name === '.git' || entry.name === 'references' || entry.name === 'SKILL.md') {
+      continue
+    }
+
+    await rename(path.join(skillDir, entry.name), path.join(referencesDir, entry.name))
   }
 
-  const notableFiles = files.filter((name) => name !== readmeName).slice(0, 6)
-  if (notableFiles.length > 0) {
-    lines.push(
-      `Review root files like ${notableFiles
-        .map((name) => `\`${name}\``)
-        .join(', ')}${files.length > 6 ? ', and other config files.' : '.'}`
-    )
+  return referencesDir
+}
+
+async function ensureInstalledSkillIgnored({ slug }) {
+  const gitRoot = await getGitRoot()
+  if (!gitRoot) {
+    return
   }
 
-  lines.push('Search the repository directly when you need implementation details; this generated skill does not strip or summarize the source tree.')
-  return lines
+  const candidates = [
+    `/.agents/skills/${slug}/`,
+    `/.cursor/skills/${slug}`,
+    `/skills/${slug}/`,
+  ]
+
+  const existingCandidates = []
+  for (const candidate of candidates) {
+    const candidatePath = path.join(gitRoot, candidate.replace(/^\/+/, '').replace(/\//g, path.sep))
+    if (await pathExists(candidatePath)) {
+      existingCandidates.push(candidate)
+    }
+  }
+
+  if (existingCandidates.length === 0) {
+    return
+  }
+
+  const gitignorePath = path.join(gitRoot, '.gitignore')
+  const currentText = (await readTextIfExists(gitignorePath)) ?? ''
+  const normalizedLines = currentText.replace(/\r/g, '').split('\n')
+  const additions = existingCandidates.filter((entry) => !normalizedLines.includes(entry))
+
+  if (additions.length === 0) {
+    return
+  }
+
+  const prefix = currentText.length === 0 ? '' : currentText.endsWith('\n') ? '' : '\n'
+  const comment = normalizedLines.includes('# Installed skills') ? '' : '# Installed skills\n'
+  await writeFile(gitignorePath, `${currentText}${prefix}${comment}${additions.join('\n')}\n`, 'utf8')
+}
+
+async function getGitRoot() {
+  const result = await runCommandCapture('git', ['rev-parse', '--show-toplevel']).catch(() => null)
+  return result?.stdout.trim() || ''
+}
+
+async function pathExists(targetPath) {
+  try {
+    await access(targetPath)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function escapeForYaml(value) {
@@ -294,15 +308,23 @@ function logStep(message) {
 }
 
 async function runCommand(command, args, options = {}) {
-  await new Promise((resolve, reject) => {
+  await runCommandCapture(command, args, options)
+}
+
+async function runCommandCapture(command, args, options = {}) {
+  return await new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       stdio: options.inheritOutput ? 'inherit' : 'pipe',
       shell: false,
     })
 
+    let stdout = ''
     let stderr = ''
 
     if (!options.inheritOutput) {
+      child.stdout?.on('data', (chunk) => {
+        stdout += String(chunk)
+      })
       child.stderr?.on('data', (chunk) => {
         stderr += String(chunk)
       })
@@ -311,7 +333,7 @@ async function runCommand(command, args, options = {}) {
     child.on('error', (error) => reject(error))
     child.on('close', (code) => {
       if (code === 0) {
-        resolve()
+        resolve({ stdout, stderr })
         return
       }
       reject(

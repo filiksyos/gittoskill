@@ -67,9 +67,10 @@ export function GittoskillHome({ initialRepoInput = '' }: GittoskillHomeProps) {
             <p className="mt-4 max-w-xl text-lg text-zinc-600">
               Paste a public GitHub repo URL or{' '}
               <span className="whitespace-nowrap">owner/repo</span>. GitToSkill
-              returns the exact command to clone the repo locally, generate a
-              root <code className="text-zinc-800">SKILL.md</code>, and install
-              it through <code className="text-zinc-800">skills add</code>.
+              returns the exact command to clone the repo locally, move the
+              upstream contents into <code className="text-zinc-800">references/</code>,
+              generate a root <code className="text-zinc-800">SKILL.md</code>,
+              and install it through <code className="text-zinc-800">skills add</code>.
             </p>
           </div>
 
@@ -151,10 +152,11 @@ export function GittoskillHome({ initialRepoInput = '' }: GittoskillHomeProps) {
               </pre>
               <div className="mt-4 space-y-2 text-sm text-zinc-700">
                 <p>
-                  GitToSkill does not call the GitHub REST API. The CLI clones
-                  the repository locally, writes a generated{' '}
-                  <code>SKILL.md</code> into the cloned snapshot, and then
-                  forwards installation to <code>skills add</code>.
+                  GitToSkill makes a small unauthenticated GitHub API request to
+                  pull the repository description. The CLI then clones the
+                  repository locally, moves the upstream contents into{' '}
+                  <code>references/</code>, writes a generated <code>SKILL.md</code>{' '}
+                  at the root, and forwards installation to <code>skills add</code>.
                 </p>
                 <p>
                   Append any normal <code>skills add</code> flags after the repo
