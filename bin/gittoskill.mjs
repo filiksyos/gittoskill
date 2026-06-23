@@ -68,7 +68,6 @@ async function main() {
       referencesDir,
       owner: parsed.owner,
       repo: parsed.repo,
-      sourceUrl: cloneUrl.replace(/\.git$/i, ''),
       repoDescription,
     })
 
@@ -152,7 +151,7 @@ function slugSkillSegment(value) {
     .slice(0, 64)
 }
 
-async function buildSkillMarkdown({ referencesDir, owner, repo, sourceUrl, repoDescription }) {
+async function buildSkillMarkdown({ referencesDir, owner, repo, repoDescription }) {
   const entries = await readdir(referencesDir, { withFileTypes: true })
   const visibleEntries = entries.map((entry) => entry.name).sort((left, right) => left.localeCompare(right))
   const readmeName =
@@ -169,11 +168,9 @@ async function buildSkillMarkdown({ referencesDir, owner, repo, sourceUrl, repoD
     `description: "${escapeForYaml(description)}"`,
     '---',
     '',
-    'This is the README.md of the repository repackaged into SKILL.md to give context about the codebase.',
+    '(This is the README.md of the repository repackaged into SKILL.md to give context about the codebase.)',
     '',
     'The repository code is available under `/references` in this installed skill.',
-    '',
-    `This skill is a locally generated snapshot of [\`${owner}/${repo}\`](${sourceUrl}). GitToSkill cloned the repository, moved the upstream contents into \`references/\`, removed its Git metadata, and added this \`SKILL.md\` wrapper before handing installation off to the \`skills\` CLI.`,
     '',
     readmeBody,
     '',
@@ -202,7 +199,7 @@ function normalizeMarkdown(text) {
 function buildDescription({ repoDescription }) {
   const base = repoDescription || 'Description not available.'
   const suffix =
-    " This is a github repo that's repackaged as a skill so it can be used as a reference for inspiration."
+    " (This is a github repo that's repackaged as a skill so it can be used as a reference for inspiration)"
   const combined = `${base}${base.endsWith('.') ? '' : '.'}${suffix}`
   return combined.slice(0, 1024)
 }
