@@ -4,13 +4,14 @@ GitToSkill is a CLI-first project for turning any public GitHub repository into 
 
 ## How it works
 
-`gittoskill add <repo>` does three things:
+`gittoskill add <repo>` does four things:
 
 1. Clones the target repository locally with `git clone --depth 1`
-2. Generates a root `SKILL.md` inside that cloned snapshot
-3. Invokes `skills add <local-path>` so agent selection, scope, and install mode behave the same as the upstream `skills` CLI
+2. Fetches the repository description from the public GitHub API
+3. Moves the cloned repository contents into `references/` and generates a root `SKILL.md`
+4. Invokes `skills add <local-path>` so agent selection, scope, and install mode behave the same as the upstream `skills` CLI
 
-The generated skill keeps the repository contents in place. GitToSkill adds `SKILL.md` and removes the cloned `.git` directory before handing the folder to `skills`.
+The generated skill keeps `SKILL.md` at the root as the wrapper/context file. The upstream repository contents are stored under `references/`, and the cloned `.git` directory is removed before handing the folder to `skills`.
 
 ## Web app
 
@@ -20,7 +21,7 @@ The Next.js app is intentionally simple. It accepts a GitHub repository URL or `
 npx gittoskill add owner/repo
 ```
 
-That means there is no preview-generation backend, no ZIP export, and no GitHub REST API dependency in the main product flow.
+That means there is no preview-generation backend and no ZIP export. The CLI makes a small unauthenticated GitHub API request to pull the repository description, but the packaging work still happens locally on the user's machine.
 
 ## Local development
 
