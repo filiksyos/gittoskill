@@ -1,27 +1,49 @@
 # GitToSkill
 
-GitToSkill is a CLI-first project for turning any public GitHub repository into a locally installable skill. The web app only generates the install command; the CLI does the real work.
+GitToSkill turns a GitHub profile into an installable Cursor skill.
 
-## How it works
+Give it a profile like `@steipete`, and it will:
 
-`gittoskill add <repo>` does four things:
+1. Fetch the profile, profile README, and a notable repo shortlist through GitHub GraphQL.
+2. Pull a second batch of repo details to capture style signals from real projects.
+3. Use Azure OpenAI to write a profile-specific skill guide.
+4. Let you either download the generated markdown skill or install it through the CLI.
 
-1. Clones the target repository locally with `git clone --depth 1`
-2. Fetches the repository description from the public GitHub API
-3. Moves the cloned repository contents into `references/` and generates a root `SKILL.md`
-4. Invokes `skills add <local-path>` so agent selection, scope, and install mode behave the same as the upstream `skills` CLI
+## Core flow
 
-The generated skill keeps `SKILL.md` at the root as the wrapper/context file. The upstream repository contents are stored under `references/`, and the cloned `.git` directory is removed before handing the folder to `skills`.
+Web:
 
-## Web app
+- Paste a GitHub profile like `@steipete` or `https://github.com/steipete`
+- Review the generated skill
+- Copy the install command or download the `.md` file
 
-The Next.js app is intentionally simple. It accepts a GitHub repository URL or `owner/repo` and returns the exact command:
+CLI:
 
 ```bash
-npx gittoskill add owner/repo
+npx gittoskill add @steipete
 ```
 
-That means there is no preview-generation backend and no ZIP export. The CLI makes a small unauthenticated GitHub API request to pull the repository description, but the packaging work still happens locally on the user's machine.
+The CLI calls the GitToSkill backend, writes the returned `SKILL.md` plus reference files into a local generated folder, and then forwards installation to `skills add`.
+
+## Environment
+
+The generator expects:
+
+- `GITHUB_TOKEN`
+- `AZURE_OPENAI_API_KEY`
+- `AZURE_OPENAI_BASE_URL`
+- `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`
+
+Optional Azure tuning:
+
+- `AZURE_OPENAI_MODEL`
+- `AZURE_OPENAI_REASONING_EFFORT`
+
+For local CLI usage against a local dev server, set:
+
+- `GITTOSKILL_API_BASE_URL=http://localhost:3000`
+
+Otherwise the CLI defaults to the production GitToSkill deployment URL.
 
 ## Local development
 
@@ -29,7 +51,6 @@ That means there is no preview-generation backend and no ZIP export. The CLI mak
 
 - Node.js 18+
 - `pnpm`
-- `git`
 
 ### Install
 
@@ -46,33 +67,26 @@ pnpm dev
 ### Run the CLI locally
 
 ```bash
-pnpm cli:add -- vercel/next.js
+$env:GITTOSKILL_API_BASE_URL="http://localhost:3000"
+pnpm cli:add -- @steipete
 ```
 
-You can forward normal `skills add` flags after the repository input:
+You can forward normal `skills add` flags after the profile input:
 
 ```bash
-pnpm cli:add -- vercel/next.js --agent cursor --scope project
+pnpm cli:add -- @steipete --agent cursor --scope project
 ```
 
 ## Project structure
 
 ```text
 gittoskill/
-├── app/                    # Next.js website that outputs the install command
-├── bin/gittoskill.mjs      # CLI wrapper around git clone + skills add
+├── app/                    # Next.js website + profile skill API
+├── bin/gittoskill.mjs      # CLI wrapper around backend generation + skills add
 ├── components/             # Web UI
-├── lib/                    # Shared parsing helpers for the web app
+├── lib/                    # GitHub, Azure, parsing, and skill generation helpers
 └── README.md
 ```
-
-## Cross-platform support
-
-The target platforms for v1 are Windows, macOS, and Linux. The implementation stays cross-platform by relying on:
-
-- Node.js standard library for filesystem/process work
-- `git` for cloning
-- `skills` for the final installation flow
 
 ## License
 

@@ -1,7 +1,7 @@
 {
   "name": "gittoskill",
   "version": "0.1.0",
-  "description": "Clone a GitHub repo, reshape it into a local skill package, and install it through the skills CLI.",
+  "description": "Turn a GitHub profile into an installable coding skill.",
   "bin": {
     "gittoskill": "./bin/gittoskill.mjs"
   },

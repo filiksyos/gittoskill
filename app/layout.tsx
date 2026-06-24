@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'GitToSkill',
   description:
-    'Generate the exact npx gittoskill command for a GitHub repo and install it locally through the skills CLI.',
+    'Turn any GitHub profile into an installable coding skill by analyzing the profile, repo lineup, and real code style.',
 }
 
 export default function RootLayout({
