@@ -40,12 +40,12 @@ async function main() {
   const cacheRoot = path.join(os.homedir(), '.gittoskill', 'generated')
   const finalSkillDir = path.join(
     cacheRoot,
-    slugSkillSegment(`${parsed.login}-profile-skill`) || 'profile-skill'
+    slugSkillSegment(`${parsed.login}-coding-skill`) || 'coding-skill'
   )
   const stagingRoot = await mkdtemp(path.join(os.tmpdir(), 'gittoskill-'))
   const stagingDir = path.join(
     stagingRoot,
-    slugSkillSegment(`${parsed.login}-profile-skill`) || 'profile-skill'
+    slugSkillSegment(`${parsed.login}-coding-skill`) || 'coding-skill'
   )
 
   await mkdir(cacheRoot, { recursive: true })

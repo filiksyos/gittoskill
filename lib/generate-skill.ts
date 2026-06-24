@@ -27,8 +27,12 @@ function slugSkillSegment(value: string): string {
 }
 
 export function skillDirectoryName(login: string): string {
-  const base = slugSkillSegment(`${login}-profile-skill`)
-  return base || 'profile-skill'
+  const base = slugSkillSegment(`${login}-coding-skill`)
+  return base || 'coding-skill'
+}
+
+function skillFrontmatterName(login: string): string {
+  return `@${login}-coding-skill`
 }
 
 function yamlDoubleQuotedString(value: string): string {
@@ -100,12 +104,7 @@ export function buildSkillMarkdown(input: {
   repoDetails: GitHubRepoStyleDetails[]
   styleGuide: string
 }): string {
-  const { overview, repoDetails, styleGuide } = input
-  const selectedRepoLinks =
-    repoDetails.length > 0
-      ? repoDetails.map((repo) => `- [${repo.nameWithOwner}](${repo.url})`).join('\n')
-      : '- No repository excerpts were captured.'
-
+  const { overview, styleGuide } = input
   const allRepos = [...overview.pinnedRepos, ...overview.topRepos]
   const uniqueRepoLines = Array.from(
     new Map(allRepos.map((repo) => [repo.nameWithOwner, repoBullet(repo)])).values()
@@ -113,17 +112,13 @@ export function buildSkillMarkdown(input: {
 
   return [
     '---',
-    `name: ${skillDirectoryName(overview.login)}`,
+    `name: ${skillFrontmatterName(overview.login)}`,
     `description: ${yamlDoubleQuotedString(
-      `GitHub profile skill for ${overview.displayName}. Use it when the task would benefit from mimicking this developer's repo choices, coding style, and implementation techniques.`
+      `GitHub profile skill from @${overview.login}. Use it when the task would benefit from mimicking this developer's repo choices, coding style, and implementation techniques.`
     )}`,
     '---',
     '',
-    `# ${overview.displayName}`,
-    '',
-    `GitHub profile: [@${overview.login}](${overview.profileUrl})`,
-    '',
-    overview.bio ? overview.bio : 'No public profile bio was available.',
+    styleGuide.trim(),
     '',
     '## Repo Map',
     '',
@@ -137,19 +132,6 @@ export function buildSkillMarkdown(input: {
     '- Study the implementation details, naming patterns, architecture, UI taste, and tooling choices there.',
     '- Return to the main task and apply the useful patterns you observed instead of copying blindly.',
     '- Treat the upstream repositories as reference material for style and technique, then adapt them to the current codebase responsibly.',
-    '',
-    '## Style Guide',
-    '',
-    styleGuide.trim(),
-    '',
-    '## Best Reference Repos',
-    '',
-    selectedRepoLinks,
-    '',
-    '## Reference Files',
-    '',
-    '- Profile summary: [references/profile-summary.md](references/profile-summary.md)',
-    '- Repository excerpts: [references/repos/](references/repos/)',
     '',
   ].join('\n')
 }

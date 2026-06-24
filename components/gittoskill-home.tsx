@@ -331,18 +331,7 @@ export function GittoskillHome({
                 ) : null}
 
                 <div className="border-t border-zinc-300 pt-5">
-                  <h3 className="text-base font-bold tracking-tight text-zinc-900">
-                    SKILL.md
-                  </h3>
-                  <hr className="mt-3 border-zinc-300" />
-
-                  <div className="mt-5">
-                    {parsedSkill?.name ? (
-                      <p className="font-mono text-sm text-zinc-500">{parsedSkill.name}</p>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-6 max-w-none text-sm leading-relaxed">
+                  <div className="max-w-none text-sm leading-relaxed">
                     <ReactMarkdown
                       components={{
                         h1: ({ children }) => (
