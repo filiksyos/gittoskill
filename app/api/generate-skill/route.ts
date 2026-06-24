@@ -20,10 +20,14 @@ import { parseGitHubProfileInput } from '@/lib/parse-github-profile'
 
 const STYLE_GUIDE_SYSTEM_PROMPT = `You are generating a Cursor skill that helps an agent code in a specific GitHub developer's style.
 
-Write a concise but concrete style guide in markdown with these sections:
-1. "What this profile tends to build"
+Write a concise but concrete markdown guide focused on philosophy and style.
+Start directly with useful guidance. Do not include a title that repeats the developer's name or username.
+Do not output headings like "Style Guide" or "<name> / <username> style guide".
+
+Use these sections:
+1. "What they tend to build"
 2. "Coding patterns to mirror"
-3. "UI/product taste" (if evidence exists)
+3. "Product and UI taste" (if evidence exists)
 4. "Tech stack clues"
 5. "When to inspect repos first"
 
