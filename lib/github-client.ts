@@ -111,6 +111,14 @@ async function fetchGitHubGraphQl<T>(
   return raw.data
 }
 
+function isMissingRepositoryError(message: string): boolean {
+  const lower = message.toLowerCase()
+  return (
+    lower.includes('could not resolve to a repository') ||
+    lower.includes('could not resolve to repository')
+  )
+}
+
 function normalizeRepo(node: RepoNode | null | undefined): GitHubProfileRepo | null {
   if (!node?.name || !node.nameWithOwner || !node.url) {
     return null
@@ -235,7 +243,7 @@ export async function getGitHubProfileOverview(
     }
   `
 
-  const userData = await fetchGitHubGraphQl<{
+  let userData: {
     user?: {
       login?: string
       name?: string | null
@@ -250,7 +258,90 @@ export async function getGitHubProfileOverview(
     profileReadme?: {
       readme?: BlobNode | null
     } | null
-  }>(userQuery, { login, repoLimit: MAX_OVERVIEW_REPOS })
+  }
+
+  try {
+    userData = await fetchGitHubGraphQl(userQuery, {
+      login,
+      repoLimit: MAX_OVERVIEW_REPOS,
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (!isMissingRepositoryError(message)) {
+      throw error
+    }
+
+    userData = await fetchGitHubGraphQl<{
+      user?: {
+        login?: string
+        name?: string | null
+        bio?: string | null
+        websiteUrl?: string | null
+        url?: string
+        avatarUrl?: string
+        followers?: { totalCount?: number } | null
+        pinnedItems?: { nodes?: RepoNode[] | null } | null
+        repositories?: { nodes?: RepoNode[] | null } | null
+      } | null
+    }>(
+      `
+        query UserProfileOverviewWithoutReadme($login: String!, $repoLimit: Int!) {
+          user(login: $login) {
+            login
+            name
+            bio
+            websiteUrl
+            url
+            avatarUrl
+            followers {
+              totalCount
+            }
+            pinnedItems(first: 6, types: REPOSITORY) {
+              nodes {
+                ... on Repository {
+                  name
+                  nameWithOwner
+                  description
+                  url
+                  stargazerCount
+                  forkCount
+                  updatedAt
+                  isArchived
+                  primaryLanguage { name }
+                  repositoryTopics(first: 5) {
+                    nodes { topic { name } }
+                  }
+                }
+              }
+            }
+            repositories(
+              first: $repoLimit
+              ownerAffiliations: OWNER
+              privacy: PUBLIC
+              isFork: false
+              orderBy: { field: STARGAZERS, direction: DESC }
+            ) {
+              nodes {
+                name
+                nameWithOwner
+                description
+                url
+                stargazerCount
+                forkCount
+                updatedAt
+                isArchived
+                primaryLanguage { name }
+                repositoryTopics(first: 5) {
+                  nodes { topic { name } }
+                }
+              }
+            }
+          }
+        }
+      `,
+      { login, repoLimit: MAX_OVERVIEW_REPOS }
+    )
+  }
 
   if (userData.user?.login && userData.user.url && userData.user.avatarUrl) {
     const pinnedRepos = uniqueRepos(
@@ -360,15 +451,82 @@ export async function getGitHubProfileOverview(
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    if (
+    if (isMissingRepositoryError(message)) {
+      orgData = await fetchGitHubGraphQl<{
+        organization?: {
+          login?: string
+          name?: string | null
+          description?: string | null
+          websiteUrl?: string | null
+          url?: string
+          avatarUrl?: string
+          pinnedItems?: { nodes?: RepoNode[] | null } | null
+          repositories?: { nodes?: RepoNode[] | null } | null
+        } | null
+      }>(
+        `
+          query OrganizationProfileOverviewWithoutReadme($login: String!, $repoLimit: Int!) {
+            organization(login: $login) {
+              login
+              name
+              description
+              websiteUrl
+              url
+              avatarUrl
+              pinnedItems(first: 6, types: REPOSITORY) {
+                nodes {
+                  ... on Repository {
+                    name
+                    nameWithOwner
+                    description
+                    url
+                    stargazerCount
+                    forkCount
+                    updatedAt
+                    isArchived
+                    primaryLanguage { name }
+                    repositoryTopics(first: 5) {
+                      nodes { topic { name } }
+                    }
+                  }
+                }
+              }
+              repositories(
+                first: $repoLimit
+                privacy: PUBLIC
+                isFork: false
+                orderBy: { field: STARGAZERS, direction: DESC }
+              ) {
+                nodes {
+                  name
+                  nameWithOwner
+                  description
+                  url
+                  stargazerCount
+                  forkCount
+                  updatedAt
+                  isArchived
+                  primaryLanguage { name }
+                  repositoryTopics(first: 5) {
+                    nodes { topic { name } }
+                  }
+                }
+              }
+            }
+          }
+        `,
+        { login, repoLimit: MAX_OVERVIEW_REPOS }
+      )
+    } else if (
       message.toLowerCase().includes('read:org') ||
       message.toLowerCase().includes('granted the required scopes')
     ) {
       throw new Error(
         'This token can read normal user profiles, but organization profiles need the GitHub `read:org` scope.'
       )
+    } else {
+      throw error
     }
-    throw error
   }
 
   const pinnedRepos = uniqueRepos(

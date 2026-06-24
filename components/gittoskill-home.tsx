@@ -6,10 +6,11 @@ import { parseGitHubProfileInput } from '@/lib/parse-github-profile'
 import { SkillGenerationFlavorText } from '@/components/skill-generation-flavor-text'
 
 const EXAMPLES = [
-  { label: 'steipete', value: '@steipete' },
+  { label: 'pewdiepie', value: '@pewdiepie-archdaemon' },
   { label: 'shadcn', value: '@shadcn' },
-  { label: 'rauchg', value: '@rauchg' },
-  { label: 'tj', value: '@tj' },
+  { label: 'karpathy', value: '@karpathy' },
+  { label: 'garrytan', value: '@garrytan' },
+  { label: 'torvalds', value: '@torvalds' },
 ] as const
 
 type SkillOutput = {
@@ -77,6 +78,23 @@ function CopyIcon() {
   )
 }
 
+function CheckIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  )
+}
+
 function DownloadIcon() {
   return (
     <svg
@@ -92,6 +110,19 @@ function DownloadIcon() {
       <path d="M12 3v12" />
       <path d="m7 10 5 5 5-5" />
       <path d="M5 21h14" />
+    </svg>
+  )
+}
+
+function GitHubIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="currentColor"
+    >
+      <path d="M12 .5C5.648.5.5 5.648.5 12a11.5 11.5 0 0 0 7.86 10.914c.575.106.786-.25.786-.556 0-.274-.01-1-.016-1.963-3.198.695-3.873-1.541-3.873-1.541-.523-1.328-1.278-1.682-1.278-1.682-1.045-.714.08-.699.08-.699 1.155.081 1.763 1.186 1.763 1.186 1.027 1.76 2.694 1.252 3.35.957.104-.744.402-1.252.732-1.54-2.553-.291-5.238-1.277-5.238-5.684 0-1.255.449-2.282 1.185-3.086-.119-.291-.514-1.462.113-3.049 0 0 .967-.31 3.17 1.18A10.97 10.97 0 0 1 12 6.037c.974.004 1.955.132 2.872.387 2.201-1.49 3.166-1.18 3.166-1.18.629 1.587.234 2.758.115 3.049.738.804 1.184 1.831 1.184 3.086 0 4.418-2.69 5.389-5.254 5.674.413.356.781 1.06.781 2.137 0 1.543-.014 2.787-.014 3.168 0 .309.207.668.793.555A11.503 11.503 0 0 0 23.5 12C23.5 5.648 18.352.5 12 .5Z" />
     </svg>
   )
 }
@@ -197,9 +228,18 @@ export function GittoskillHome({
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
           <span className="text-xl font-bold tracking-tight">
             <span className="text-zinc-900">Git</span>
-            <span className="text-[#d31611]">ToSkill</span>
+            <span className="text-[#7c3aed]">ToSkill</span>
           </span>
-          <span className="text-sm text-zinc-600">GitHub profile to skill</span>
+          <a
+            href="https://github.com/filiksyos/gittoskill"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 text-sm text-zinc-700 transition-opacity hover:opacity-70"
+            aria-label="Open filiksyos/gittoskill on GitHub"
+          >
+            <GitHubIcon />
+            <span>GitHub</span>
+          </a>
         </div>
       </nav>
 
@@ -218,7 +258,7 @@ export function GittoskillHome({
             <div className="absolute inset-0 translate-x-2 translate-y-2 rounded-xl bg-zinc-900" />
             <form
               onSubmit={onSubmit}
-              className="relative z-10 rounded-xl border-[3px] border-zinc-900 bg-[#fff4da] p-6 text-left"
+              className="relative z-10 rounded-xl border-[3px] border-zinc-900 bg-[#f3e8ff] p-6 text-left"
             >
               <div className="flex flex-col gap-3 sm:flex-row">
                 <div className="relative flex-1">
@@ -236,7 +276,7 @@ export function GittoskillHome({
                 <button
                   type="submit"
                   disabled={loading || !parsed}
-                  className="relative z-10 rounded border-[3px] border-zinc-900 bg-[#d31611] px-6 py-3 font-medium text-white disabled:cursor-not-allowed disabled:opacity-70 sm:shrink-0"
+                  className="relative z-10 rounded border-[3px] border-zinc-900 bg-[#7c3aed] px-6 py-3 font-medium text-white disabled:cursor-not-allowed disabled:opacity-70 sm:shrink-0"
                 >
                   {loading ? 'Generating…' : 'Generate skill'}
                 </button>
@@ -251,7 +291,7 @@ export function GittoskillHome({
                     key={value}
                     type="button"
                     onClick={() => setProfileInput(value)}
-                    className="rounded border-[3px] border-zinc-900 bg-[#EBDBB7] px-3 py-1 text-sm font-medium hover:bg-[#ffc480]"
+                    className="rounded border-[3px] border-zinc-900 bg-[#ede9fe] px-3 py-1 text-sm font-medium hover:bg-[#ddd6fe]"
                   >
                     {label}
                   </button>
@@ -263,13 +303,13 @@ export function GittoskillHome({
               ) : null}
 
               {validationError ? (
-                <p className="mt-3 text-sm text-red-600" role="alert">
+                <p className="mt-3 text-sm text-violet-700" role="alert">
                   {validationError}
                 </p>
               ) : null}
 
               {error ? (
-                <p className="mt-3 text-sm text-red-600" role="alert">
+                <p className="mt-3 text-sm text-violet-700" role="alert">
                   {error}
                 </p>
               ) : null}
@@ -319,16 +359,12 @@ export function GittoskillHome({
                       onClick={() => void copyCommand()}
                       aria-label={copied ? 'Copied install command' : 'Copy install command'}
                       title={copied ? 'Copied!' : 'Copy install command'}
-                      className="inline-flex shrink-0 items-center justify-center border-l-[3px] border-zinc-900 bg-[#fff4da] px-3 text-zinc-900"
+                      className="inline-flex shrink-0 items-center justify-center border-l-[3px] border-zinc-900 bg-[#f3e8ff] px-3 text-zinc-900"
                     >
-                      <CopyIcon />
+                      {copied ? <CheckIcon /> : <CopyIcon />}
                     </button>
                   </div>
                 </div>
-
-                {copied ? (
-                  <p className="-mt-2 text-sm font-medium text-[#b61a14]">Copied.</p>
-                ) : null}
 
                 <div className="border-t border-zinc-300 pt-5">
                   <div className="max-w-none text-sm leading-relaxed">
@@ -355,7 +391,7 @@ export function GittoskillHome({
                           </p>
                         ),
                         ul: ({ children }) => (
-                          <ul className="mb-5 list-disc space-y-2 pl-5 text-[15px] text-zinc-700 marker:text-[#b61a14]">
+                          <ul className="mb-5 list-disc space-y-2 pl-5 text-[15px] text-zinc-700 marker:text-[#7c3aed]">
                             {children}
                           </ul>
                         ),
@@ -370,13 +406,13 @@ export function GittoskillHome({
                             href={href}
                             target="_blank"
                             rel="noreferrer"
-                            className="font-medium text-[#b61a14] underline underline-offset-2"
+                            className="font-medium text-[#7c3aed] underline underline-offset-2"
                           >
                             {children}
                           </a>
                         ),
                         code: ({ children }) => (
-                          <code className="rounded-md bg-[#fff4da] px-1.5 py-0.5 font-mono text-[13px] text-zinc-900">
+                          <code className="rounded-md bg-[#f3e8ff] px-1.5 py-0.5 font-mono text-[13px] text-zinc-900">
                             {children}
                           </code>
                         ),
@@ -387,7 +423,7 @@ export function GittoskillHome({
                         ),
                         hr: () => <hr className="my-6 border-zinc-200" />,
                         blockquote: ({ children }) => (
-                          <blockquote className="mb-5 rounded-r-lg border-l-4 border-[#d31611] bg-[#fff8ea] py-1 pl-4 text-zinc-600">
+                          <blockquote className="mb-5 rounded-r-lg border-l-4 border-[#7c3aed] bg-[#faf5ff] py-1 pl-4 text-zinc-600">
                             {children}
                           </blockquote>
                         ),

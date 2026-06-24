@@ -3,16 +3,16 @@ import { GittoskillHome } from '@/components/gittoskill-home'
 import { isValidGitHubProfileLogin } from '@/lib/parse-github-profile'
 
 type PageProps = {
-  params: Promise<{ login: string }>
+  params: Promise<{ owner: string }>
 }
 
 export default async function ProfilePage({ params }: PageProps) {
-  const { login: loginRaw } = await params
-  const login = decodeURIComponent(loginRaw)
+  const { owner: ownerRaw } = await params
+  const owner = decodeURIComponent(ownerRaw)
 
-  if (!isValidGitHubProfileLogin(login)) {
+  if (!isValidGitHubProfileLogin(owner)) {
     notFound()
   }
 
-  return <GittoskillHome initialProfileInput={`@${login}`} />
+  return <GittoskillHome initialProfileInput={`@${owner}`} />
 }
