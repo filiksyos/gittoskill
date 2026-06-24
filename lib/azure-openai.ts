@@ -36,7 +36,10 @@ function parseDeploymentNameMap(): Map<string, string> {
     const trimmed = entry.trim()
     if (!trimmed) continue
     const equalsIdx = trimmed.indexOf('=')
-    if (equalsIdx === -1) continue
+    if (equalsIdx === -1) {
+      map.set(DEFAULT_AZURE_MODEL, trimmed)
+      continue
+    }
     const key = trimmed.slice(0, equalsIdx).trim()
     const value = trimmed.slice(equalsIdx + 1).trim()
     if (key && value) {
