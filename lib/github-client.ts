@@ -172,8 +172,8 @@ function uniqueRepos(repos: GitHubProfileRepo[]): GitHubProfileRepo[] {
 export async function getGitHubProfileOverview(
   login: string
 ): Promise<GitHubProfileOverview> {
-  const query = `
-    query ProfileOverview($login: String!, $repoLimit: Int!) {
+  const userQuery = `
+    query UserProfileOverview($login: String!, $repoLimit: Int!) {
       user(login: $login) {
         login
         name
@@ -225,6 +225,61 @@ export async function getGitHubProfileOverview(
           }
         }
       }
+      profileReadme: repository(owner: $login, name: $login) {
+        readme: object(expression: "HEAD:README.md") {
+          ... on Blob {
+            text
+          }
+        }
+      }
+    }
+  `
+
+  const userData = await fetchGitHubGraphQl<{
+    user?: {
+      login?: string
+      name?: string | null
+      bio?: string | null
+      websiteUrl?: string | null
+      url?: string
+      avatarUrl?: string
+      followers?: { totalCount?: number } | null
+      pinnedItems?: { nodes?: RepoNode[] | null } | null
+      repositories?: { nodes?: RepoNode[] | null } | null
+    } | null
+    profileReadme?: {
+      readme?: BlobNode | null
+    } | null
+  }>(userQuery, { login, repoLimit: MAX_OVERVIEW_REPOS })
+
+  if (userData.user?.login && userData.user.url && userData.user.avatarUrl) {
+    const pinnedRepos = uniqueRepos(
+      (userData.user.pinnedItems?.nodes ?? [])
+        .map((repo) => normalizeRepo(repo))
+        .filter((repo): repo is GitHubProfileRepo => Boolean(repo))
+    )
+    const topRepos = uniqueRepos(
+      (userData.user.repositories?.nodes ?? [])
+        .map((repo) => normalizeRepo(repo))
+        .filter((repo): repo is GitHubProfileRepo => Boolean(repo))
+    )
+
+    return {
+      login: userData.user.login,
+      displayName: userData.user.name?.trim() || userData.user.login,
+      bio: userData.user.bio?.trim() || null,
+      websiteUrl: userData.user.websiteUrl?.trim() || null,
+      profileUrl: userData.user.url,
+      avatarUrl: userData.user.avatarUrl,
+      followerCount: userData.user.followers?.totalCount ?? null,
+      profileReadme: trimBlobText(userData.profileReadme?.readme?.text, 12000),
+      pinnedRepos,
+      topRepos,
+    }
+  }
+
+  const organizationQuery = `
+    query OrganizationProfileOverview($login: String!, $repoLimit: Int!) {
       organization(login: $login) {
         login
         name
@@ -282,18 +337,7 @@ export async function getGitHubProfileOverview(
     }
   `
 
-  const data = await fetchGitHubGraphQl<{
-    user?: {
-      login?: string
-      name?: string | null
-      bio?: string | null
-      websiteUrl?: string | null
-      url?: string
-      avatarUrl?: string
-      followers?: { totalCount?: number } | null
-      pinnedItems?: { nodes?: RepoNode[] | null } | null
-      repositories?: { nodes?: RepoNode[] | null } | null
-    } | null
+  let orgData: {
     organization?: {
       login?: string
       name?: string | null
@@ -307,39 +351,54 @@ export async function getGitHubProfileOverview(
     profileReadme?: {
       readme?: BlobNode | null
     } | null
-  }>(query, { login, repoLimit: MAX_OVERVIEW_REPOS })
+  }
 
-  const actor = data.user ?? data.organization
-  if (!actor?.login || !actor.url || !actor.avatarUrl) {
-    throw new Error(`GitHub profile "${login}" was not found.`)
+  try {
+    orgData = await fetchGitHubGraphQl(organizationQuery, {
+      login,
+      repoLimit: MAX_OVERVIEW_REPOS,
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (
+      message.toLowerCase().includes('read:org') ||
+      message.toLowerCase().includes('granted the required scopes')
+    ) {
+      throw new Error(
+        'This token can read normal user profiles, but organization profiles need the GitHub `read:org` scope.'
+      )
+    }
+    throw error
   }
 
   const pinnedRepos = uniqueRepos(
-    (actor.pinnedItems?.nodes ?? [])
+    (orgData.organization?.pinnedItems?.nodes ?? [])
       .map((repo) => normalizeRepo(repo))
       .filter((repo): repo is GitHubProfileRepo => Boolean(repo))
   )
   const topRepos = uniqueRepos(
-    (actor.repositories?.nodes ?? [])
+    (orgData.organization?.repositories?.nodes ?? [])
       .map((repo) => normalizeRepo(repo))
       .filter((repo): repo is GitHubProfileRepo => Boolean(repo))
   )
 
-  const actorBio =
-    data.user != null
-      ? data.user.bio?.trim() || null
-      : data.organization?.description?.trim() || null
+  if (
+    !orgData.organization?.login ||
+    !orgData.organization.url ||
+    !orgData.organization.avatarUrl
+  ) {
+    throw new Error(`GitHub profile "${login}" was not found.`)
+  }
 
   return {
-    login: actor.login,
-    displayName: actor.name?.trim() || actor.login,
-    bio: actorBio,
-    websiteUrl: actor.websiteUrl?.trim() || null,
-    profileUrl: actor.url,
-    avatarUrl: actor.avatarUrl,
-    followerCount:
-      'followers' in actor ? actor.followers?.totalCount ?? null : null,
-    profileReadme: trimBlobText(data.profileReadme?.readme?.text, 12000),
+    login: orgData.organization.login,
+    displayName: orgData.organization.name?.trim() || orgData.organization.login,
+    bio: orgData.organization.description?.trim() || null,
+    websiteUrl: orgData.organization.websiteUrl?.trim() || null,
+    profileUrl: orgData.organization.url,
+    avatarUrl: orgData.organization.avatarUrl,
+    followerCount: null,
+    profileReadme: trimBlobText(orgData.profileReadme?.readme?.text, 12000),
     pinnedRepos,
     topRepos,
   }
