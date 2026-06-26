@@ -119,6 +119,14 @@ function isMissingRepositoryError(message: string): boolean {
   )
 }
 
+function isMissingUserError(message: string): boolean {
+  const lower = message.toLowerCase()
+  return (
+    lower.includes('could not resolve to a user') ||
+    lower.includes('could not resolve to user')
+  )
+}
+
 function normalizeRepo(node: RepoNode | null | undefined): GitHubProfileRepo | null {
   if (!node?.name || !node.nameWithOwner || !node.url) {
     return null
@@ -267,38 +275,62 @@ export async function getGitHubProfileOverview(
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    if (!isMissingRepositoryError(message)) {
+    if (isMissingUserError(message)) {
+      userData = { user: null, profileReadme: null }
+    } else if (!isMissingRepositoryError(message)) {
       throw error
-    }
-
-    userData = await fetchGitHubGraphQl<{
-      user?: {
-        login?: string
-        name?: string | null
-        bio?: string | null
-        websiteUrl?: string | null
-        url?: string
-        avatarUrl?: string
-        followers?: { totalCount?: number } | null
-        pinnedItems?: { nodes?: RepoNode[] | null } | null
-        repositories?: { nodes?: RepoNode[] | null } | null
-      } | null
-    }>(
-      `
-        query UserProfileOverviewWithoutReadme($login: String!, $repoLimit: Int!) {
-          user(login: $login) {
-            login
-            name
-            bio
-            websiteUrl
-            url
-            avatarUrl
-            followers {
-              totalCount
-            }
-            pinnedItems(first: 6, types: REPOSITORY) {
-              nodes {
-                ... on Repository {
+    } else {
+      userData = await fetchGitHubGraphQl<{
+        user?: {
+          login?: string
+          name?: string | null
+          bio?: string | null
+          websiteUrl?: string | null
+          url?: string
+          avatarUrl?: string
+          followers?: { totalCount?: number } | null
+          pinnedItems?: { nodes?: RepoNode[] | null } | null
+          repositories?: { nodes?: RepoNode[] | null } | null
+        } | null
+      }>(
+        `
+          query UserProfileOverviewWithoutReadme($login: String!, $repoLimit: Int!) {
+            user(login: $login) {
+              login
+              name
+              bio
+              websiteUrl
+              url
+              avatarUrl
+              followers {
+                totalCount
+              }
+              pinnedItems(first: 6, types: REPOSITORY) {
+                nodes {
+                  ... on Repository {
+                    name
+                    nameWithOwner
+                    description
+                    url
+                    stargazerCount
+                    forkCount
+                    updatedAt
+                    isArchived
+                    primaryLanguage { name }
+                    repositoryTopics(first: 5) {
+                      nodes { topic { name } }
+                    }
+                  }
+                }
+              }
+              repositories(
+                first: $repoLimit
+                ownerAffiliations: OWNER
+                privacy: PUBLIC
+                isFork: false
+                orderBy: { field: STARGAZERS, direction: DESC }
+              ) {
+                nodes {
                   name
                   nameWithOwner
                   description
@@ -314,33 +346,11 @@ export async function getGitHubProfileOverview(
                 }
               }
             }
-            repositories(
-              first: $repoLimit
-              ownerAffiliations: OWNER
-              privacy: PUBLIC
-              isFork: false
-              orderBy: { field: STARGAZERS, direction: DESC }
-            ) {
-              nodes {
-                name
-                nameWithOwner
-                description
-                url
-                stargazerCount
-                forkCount
-                updatedAt
-                isArchived
-                primaryLanguage { name }
-                repositoryTopics(first: 5) {
-                  nodes { topic { name } }
-                }
-              }
-            }
           }
-        }
-      `,
-      { login, repoLimit: MAX_OVERVIEW_REPOS }
-    )
+        `,
+        { login, repoLimit: MAX_OVERVIEW_REPOS }
+      )
+    }
   }
 
   if (userData.user?.login && userData.user.url && userData.user.avatarUrl) {
