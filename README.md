@@ -1,5 +1,7 @@
 # GitToSkill
 
+https://github.com/user-attachments/assets/2db46a17-4162-4002-bddd-0f21d69716a9
+
 GitToSkill turns a GitHub profile into an installable Cursor skill.
 
 Give it a profile like `@steipete`, and it will:
