@@ -15,10 +15,38 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
+const siteUrl = 'https://gittoskill.vercel.app'
+
 export const metadata: Metadata = {
-  title: 'GitToSkill',
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: 'GitToSkill',
+    template: '%s | GitToSkill',
+  },
   description:
     'Turn any GitHub profile into an installable coding skill by analyzing the profile, repo lineup, and real code style.',
+  icons: {
+    icon: [
+      { url: '/favicon.png', type: 'image/png', sizes: '512x512' },
+      { url: '/icon.png', type: 'image/png' },
+    ],
+    apple: '/apple-icon.png',
+    shortcut: '/favicon.png',
+  },
+  openGraph: {
+    type: 'website',
+    siteName: 'GitToSkill',
+    title: 'GitToSkill',
+    description:
+      'Turn any GitHub profile into an installable coding skill by analyzing the profile, repo lineup, and real code style.',
+    url: siteUrl,
+  },
+  twitter: {
+    card: 'summary',
+    title: 'GitToSkill',
+    description:
+      'Turn any GitHub profile into an installable coding skill by analyzing the profile, repo lineup, and real code style.',
+  },
 }
 
 export default function RootLayout({
