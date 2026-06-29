@@ -39,6 +39,9 @@ export const metadata: Metadata = {
     description:
       'Turn any GitHub profile into an installable coding skill by analyzing the profile, repo lineup, and real code style.',
   },
+  other: {
+    'impact-site-verification': '3e794e36-073b-4491-8b78-228e7d4d390c',
+  },
 }
 
 export default function RootLayout({
@@ -48,12 +51,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <meta
-          name="impact-site-verification"
-          value="3e794e36-073b-4491-8b78-228e7d4d390c"
-        />
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
