@@ -25,14 +25,6 @@ export const metadata: Metadata = {
   },
   description:
     'Turn any GitHub profile into an installable coding skill by analyzing the profile, repo lineup, and real code style.',
-  icons: {
-    icon: [
-      { url: '/favicon.png', type: 'image/png', sizes: '512x512' },
-      { url: '/icon.png', type: 'image/png' },
-    ],
-    apple: '/apple-icon.png',
-    shortcut: '/favicon.png',
-  },
   openGraph: {
     type: 'website',
     siteName: 'GitToSkill',
