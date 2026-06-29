@@ -7,7 +7,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: '*',
-        allow: ['/', '/favicon.png', '/icon.png', '/apple-icon.png'],
+        allow: '/',
         disallow: ['/api/'],
       },
     ],
