@@ -31,17 +31,6 @@ export function skillDirectoryName(login: string): string {
   return base || 'coding-skill'
 }
 
-function skillFrontmatterName(login: string): string {
-  return `@${login}-coding-skill`
-}
-
-function yamlDoubleQuotedString(value: string): string {
-  return `"${value
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"')
-    .replace(/\r?\n/g, ' ')}"`
-}
-
 function repoBullet(repo: GitHubProfileRepo): string {
   const language = repo.primaryLanguage ? `, ${repo.primaryLanguage}` : ''
   const topics =
@@ -111,27 +100,11 @@ export function buildSkillMarkdown(input: {
   )
 
   return [
-    '---',
-    `name: ${skillFrontmatterName(overview.login)}`,
-    `description: ${yamlDoubleQuotedString(
-      `GitHub profile skill from @${overview.login}. Use it when the task would benefit from mimicking this developer's repo choices, coding style, and implementation techniques.`
-    )}`,
-    '---',
-    '',
     styleGuide.trim(),
     '',
     '## Repo Map',
     '',
     ...uniqueRepoLines,
-    '',
-    '## How To Use This Skill',
-    '',
-    `- Reach for this skill when the user asks for ${overview.displayName}'s style, when the repo stack matches this person's ecosystem, or when studying their real code would reduce made-up output.`,
-    '- Pick one or more relevant repositories from the list above based on the current task.',
-    '- Clone the most relevant repository or repositories into `/tmp` for temporary inspection.',
-    '- Study the implementation details, naming patterns, architecture, UI taste, and tooling choices there.',
-    '- Return to the main task and apply the useful patterns you observed instead of copying blindly.',
-    '- Treat the upstream repositories as reference material for style and technique, then adapt them to the current codebase responsibly.',
     '',
   ].join('\n')
 }

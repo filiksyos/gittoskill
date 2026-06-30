@@ -76,10 +76,10 @@ export function getDefaultOpenSectionId(
 ): string | null {
   if (sections.length === 0) return null
 
-  const whatTheyBuild = sections.find((section) =>
-    section.title.toLowerCase().includes('what they tend to build')
+  const philosophy = sections.find((section) =>
+    section.title.toLowerCase().includes('philosophy')
   )
-  if (whatTheyBuild) return whatTheyBuild.id
+  if (philosophy) return philosophy.id
 
   const firstNonOverview = sections.find(
     (section) =>

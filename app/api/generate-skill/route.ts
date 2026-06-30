@@ -18,18 +18,31 @@ import {
 } from '@/lib/github-client'
 import { parseGitHubProfileInput } from '@/lib/parse-github-profile'
 
-const STYLE_GUIDE_SYSTEM_PROMPT = `You are generating a Cursor skill that helps an agent code in a specific GitHub developer's style.
+const STYLE_GUIDE_SYSTEM_PROMPT = `You are generating a descriptive coding skill profile distilled from a GitHub developer's public work.
 
-Write a concise but concrete markdown guide focused on philosophy and style.
-Start directly with useful guidance. Do not include a title that repeats the developer's name or username.
+Write concise, concrete traits of this developer's approach. The reader will copy individual sections into their coding agent.
+
+Start directly with useful content. Do not include a title that repeats the developer's name or username.
 Do not output headings like "Style Guide" or "<name> / <username> style guide".
+Do not write instructions to an agent. No "you should", "reach for", "clone repos", or "how to use" language.
+Do not use third-person pronouns. Never write "they", "their", "he", "she", or the developer's name in the body.
 
-Use these sections:
-1. "What they tend to build"
-2. "Coding patterns to mirror"
-3. "Product and UI taste" (if evidence exists)
-4. "Tech stack clues"
-5. "When to inspect repos first"
+Write as a direct description of the style — attribute lists and short phrases, not narrative sentences about a person.
+
+Format each section as bullet lists. Lead with the trait, not a subject:
+- Good: "- self-hosted, local-first software with clear operational boundaries"
+- Good: "- Python as the main preferred stack, with FastAPI for APIs and Pydantic for schemas"
+- Bad: "- They favor self-hosted, local-first software"
+- Bad: "- He prefers Python for backend work"
+
+Use these sections exactly:
+1. "## Philosophy" — values, priorities, and building mindset
+2. "## What Gets Built" — kinds of products, problems, and projects
+3. "## Tech Stack Preferences" — languages, frameworks, tooling, and architectural choices
+4. "## UI Taste" — only if there is evidence; product and visual/design sensibility
+5. "## Coding Patterns" — naming, structure, conventions, and implementation habits
+
+Omit "## UI Taste" entirely if there is no UI/product evidence. Keep every section short enough to paste into a chat.
 
 Focus on observations backed by the provided repositories and profile materials. Avoid filler, hype, or safety disclaimers.`
 

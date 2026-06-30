@@ -65,25 +65,6 @@ function firstNameFromSkillBody(body: string, fallback: string): string {
   return firstName || fallback
 }
 
-function DownloadIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 3v12" />
-      <path d="m7 10 5 5 5-5" />
-      <path d="M5 21h14" />
-    </svg>
-  )
-}
-
 function GitHubIcon() {
   return (
     <svg
@@ -191,17 +172,6 @@ export function GittoskillHome({
     setOpenSectionId((prev) => (prev === id ? null : id))
   }
 
-  function downloadSkill() {
-    if (!output || typeof window === 'undefined') return
-    const blob = new Blob([output.skillMarkdown], { type: 'text/markdown' })
-    const href = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = href
-    link.download = `${output.skillDirectoryName}.md`
-    link.click()
-    URL.revokeObjectURL(href)
-  }
-
   return (
     <div id="main-content" className="min-h-screen bg-[#FFFDF8] text-zinc-900">
       <nav className="sticky top-0 z-50 border-b-[3px] border-zinc-900 bg-[#FFFDF8]">
@@ -230,7 +200,8 @@ export function GittoskillHome({
               GitHub profile into a skill
             </h1>
             <p className="mt-4 max-w-2xl text-lg text-zinc-600">
-              Paste a profile and get a clean, installable skill in seconds.
+              Paste a profile, open a section, and copy what you need into your
+              coding agent.
             </p>
           </div>
 
@@ -302,25 +273,9 @@ export function GittoskillHome({
             <div className="absolute inset-0 translate-x-2 translate-y-2 rounded-xl bg-zinc-900" />
             <section className="relative z-10 rounded-xl border-[3px] border-zinc-900 bg-[#fafafa] p-6 sm:p-7">
               <div className="flex flex-col gap-5">
-                <div className="flex items-start justify-between gap-3">
-                  <h2 className="text-3xl font-bold tracking-tight text-zinc-900">
-                    {`${skillFirstName}'s coding skill`}
-                  </h2>
-                  <button
-                    type="button"
-                    onClick={downloadSkill}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border-[3px] border-zinc-900 bg-white px-3 py-2 text-sm font-medium text-zinc-900 sm:shrink-0"
-                  >
-                    <DownloadIcon />
-                    <span>Download .md</span>
-                  </button>
-                </div>
-
-                {parsedSkill?.description ? (
-                  <p className="-mt-1 max-w-3xl text-sm leading-7 text-zinc-600">
-                    {parsedSkill.description}
-                  </p>
-                ) : null}
+                <h2 className="text-3xl font-bold tracking-tight text-zinc-900">
+                  {`${skillFirstName}'s coding skill`}
+                </h2>
 
                 {skillSections.length > 0 ? (
                   <div className="overflow-hidden rounded-xl border-[3px] border-zinc-900">
@@ -329,6 +284,7 @@ export function GittoskillHome({
                         key={section.id}
                         id={section.id}
                         title={section.title}
+                        rawContent={section.content}
                         isOpen={openSectionId === section.id}
                         onToggle={() => toggleSection(section.id)}
                         isFirst={index === 0}
