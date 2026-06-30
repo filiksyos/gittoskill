@@ -36,13 +36,16 @@ Format each section as bullet lists. Lead with the trait, not a subject:
 - Bad: "- He prefers Python for backend work"
 
 Use these sections exactly:
-1. "## Philosophy" — values, priorities, and building mindset
-2. "## What Gets Built" — kinds of products, problems, and projects
-3. "## Tech Stack Preferences" — languages, frameworks, tooling, and architectural choices
-4. "## UI Taste" — only if there is evidence; product and visual/design sensibility
-5. "## Coding Patterns" — naming, structure, conventions, and implementation habits
+1. "## Philosophy" — values, priorities, and building mindset; draw mainly from profile README, bio, and repository README excerpts
+2. "## Tech Stack" — languages, frameworks, tooling, and architectural choices; draw from dependency manifest files (package.json, requirements.txt, pyproject.toml, etc.)
+3. "## UI Taste" — only if there is evidence from CSS, design token, or tailwind config files; product and visual/design sensibility
 
-Omit "## UI Taste" entirely if there is no UI/product evidence. Keep every section short enough to paste into a chat.
+Omit "## UI Taste" entirely if there is no UI/design evidence. Keep every section short enough to paste into a chat.
+
+After each section's bullet list, add one attribution line in this exact format:
+> Source: \`<file-path>\` — <owner/repo>
+
+Use the actual file path and repository name from the provided evidence. For Philosophy, cite the profile README or the most relevant repo README. For Tech Stack, cite the dependency manifest file used. For UI Taste, cite the CSS or design file used.
 
 Focus on observations backed by the provided repositories and profile materials. Avoid filler, hype, or safety disclaimers.`
 

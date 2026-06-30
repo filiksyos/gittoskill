@@ -38,6 +38,14 @@ function repoBullet(repo: GitHubProfileRepo): string {
   return `- [${repo.nameWithOwner}](${repo.url})${repo.description ? `: ${repo.description}` : ''} (${repo.stargazerCount} stars${language}${topics})`
 }
 
+function dependencyFence(path: string): string {
+  if (path.endsWith('.json') || path.endsWith('.toml')) return 'json'
+  if (path.endsWith('.gradle.kts')) return 'kotlin'
+  if (path.endsWith('.gradle')) return 'gradle'
+  if (path.endsWith('.swift')) return 'swift'
+  return ''
+}
+
 export function buildProfileAnalysisPrompt(input: {
   overview: GitHubProfileOverview
   repoDetails: GitHubRepoStyleDetails[]
@@ -49,15 +57,13 @@ export function buildProfileAnalysisPrompt(input: {
       [
         `## ${repo.nameWithOwner}`,
         repo.description ? `Description: ${repo.description}` : '',
-        repo.rootEntries.length > 0
-          ? `Root entries:\n${repo.rootEntries.map((entry) => `- ${entry}`).join('\n')}`
-          : '',
-        repo.packageJson ? `package.json:\n\`\`\`json\n${repo.packageJson}\n\`\`\`` : '',
-        repo.tsconfig ? `tsconfig.json:\n\`\`\`json\n${repo.tsconfig}\n\`\`\`` : '',
-        repo.tailwindConfig
-          ? `tailwind.config.ts:\n\`\`\`ts\n${repo.tailwindConfig}\n\`\`\``
-          : '',
         repo.readme ? `README excerpt:\n${repo.readme}` : '',
+        repo.dependencies && repo.dependenciesPath
+          ? `Dependency manifest (${repo.dependenciesPath}):\n\`\`\`${dependencyFence(repo.dependenciesPath)}\n${repo.dependencies}\n\`\`\``
+          : '',
+        repo.globalsCss && repo.globalsCssPath
+          ? `UI/design file (${repo.globalsCssPath}):\n\`\`\`css\n${repo.globalsCss}\n\`\`\``
+          : '',
       ]
         .filter(Boolean)
         .join('\n\n')
@@ -81,7 +87,7 @@ export function buildProfileAnalysisPrompt(input: {
       ? `Profile README:\n${overview.profileReadme}`
       : 'Profile README: none',
     '',
-    'Detailed style signals from shortlisted repositories:',
+    'Repository evidence for tech stack and UI taste:',
     repoBlocks || 'No detailed repository excerpts were available.',
   ]
     .filter(Boolean)
@@ -93,20 +99,9 @@ export function buildSkillMarkdown(input: {
   repoDetails: GitHubRepoStyleDetails[]
   styleGuide: string
 }): string {
-  const { overview, styleGuide } = input
-  const allRepos = [...overview.pinnedRepos, ...overview.topRepos]
-  const uniqueRepoLines = Array.from(
-    new Map(allRepos.map((repo) => [repo.nameWithOwner, repoBullet(repo)])).values()
-  )
+  const { styleGuide } = input
 
-  return [
-    styleGuide.trim(),
-    '',
-    '## Repo Map',
-    '',
-    ...uniqueRepoLines,
-    '',
-  ].join('\n')
+  return `${styleGuide.trim()}\n`
 }
 
 export function buildReferenceFiles(input: {
@@ -152,25 +147,25 @@ export function buildReferenceFiles(input: {
       '',
       repo.description || 'No public description available.',
       '',
-      '## Root Entries',
-      '',
-      ...(repo.rootEntries.length > 0 ? repo.rootEntries.map((entry) => `- ${entry}`) : ['- None']),
-      '',
-      '## package.json',
-      '',
-      repo.packageJson ? `\`\`\`json\n${repo.packageJson}\n\`\`\`` : 'Not available.',
-      '',
-      '## tsconfig.json',
-      '',
-      repo.tsconfig ? `\`\`\`json\n${repo.tsconfig}\n\`\`\`` : 'Not available.',
-      '',
-      '## tailwind.config.ts',
-      '',
-      repo.tailwindConfig ? `\`\`\`ts\n${repo.tailwindConfig}\n\`\`\`` : 'Not available.',
-      '',
       '## README Excerpt',
       '',
       repo.readme || 'Not available.',
+      '',
+      repo.dependenciesPath
+        ? `## Dependency Manifest (\`${repo.dependenciesPath}\`)`
+        : '## Dependency Manifest',
+      '',
+      repo.dependencies
+        ? `\`\`\`${dependencyFence(repo.dependenciesPath)}\n${repo.dependencies}\n\`\`\``
+        : 'Not available.',
+      '',
+      repo.globalsCssPath
+        ? `## UI / Design File (\`${repo.globalsCssPath}\`)`
+        : '## UI / Design File',
+      '',
+      repo.globalsCss
+        ? `\`\`\`css\n${repo.globalsCss}\n\`\`\``
+        : 'Not available.',
     ].join('\n'),
   }))
 

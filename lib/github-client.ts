@@ -32,11 +32,46 @@ export type GitHubRepoStyleDetails = {
   url: string
   description: string | null
   readme: string
-  packageJson: string
-  tsconfig: string
-  tailwindConfig: string
-  rootEntries: string[]
+  dependencies: string
+  dependenciesPath: string
+  globalsCss: string
+  globalsCssPath: string
 }
+
+const DEPENDENCY_CANDIDATES = [
+  { alias: 'depPackageJson', path: 'package.json' },
+  { alias: 'depRequirements', path: 'requirements.txt' },
+  { alias: 'depPyproject', path: 'pyproject.toml' },
+  { alias: 'depPipfile', path: 'Pipfile' },
+  { alias: 'depCargo', path: 'Cargo.toml' },
+  { alias: 'depGoMod', path: 'go.mod' },
+  { alias: 'depGemfile', path: 'Gemfile' },
+  { alias: 'depComposer', path: 'composer.json' },
+  { alias: 'depPom', path: 'pom.xml' },
+  { alias: 'depGradle', path: 'build.gradle' },
+  { alias: 'depGradleKts', path: 'build.gradle.kts' },
+  { alias: 'depPubspec', path: 'pubspec.yaml' },
+  { alias: 'depSwift', path: 'Package.swift' },
+  { alias: 'depDeno', path: 'deno.json' },
+] as const
+
+const UI_CANDIDATES = [
+  { alias: 'uiAppGlobals', path: 'app/globals.css' },
+  { alias: 'uiSrcAppGlobals', path: 'src/app/globals.css' },
+  { alias: 'uiStylesGlobals', path: 'styles/globals.css' },
+  { alias: 'uiSrcIndex', path: 'src/index.css' },
+  { alias: 'uiSrcApp', path: 'src/App.css' },
+  { alias: 'uiSrcAppCss', path: 'src/app.css' },
+  { alias: 'uiSvelteTokens', path: 'src/lib/styles/tokens.css' },
+  { alias: 'uiNuxtMain', path: 'assets/css/main.css' },
+  { alias: 'uiAstroGlobal', path: 'src/styles/global.css' },
+  { alias: 'uiSrcStylesGlobals', path: 'src/styles/globals.css' },
+  { alias: 'uiSrcTokens', path: 'src/styles/tokens.css' },
+  { alias: 'uiSrcVariables', path: 'src/styles/variables.css' },
+  { alias: 'uiStylesVariables', path: 'styles/variables.css' },
+  { alias: 'uiTailwindTs', path: 'tailwind.config.ts' },
+  { alias: 'uiTailwindJs', path: 'tailwind.config.js' },
+] as const
 
 type RepoNode = {
   name?: string
@@ -53,10 +88,6 @@ type RepoNode = {
 
 type BlobNode = {
   text?: string | null
-}
-
-type TreeNode = {
-  entries?: Array<{ name?: string | null; type?: string | null }> | null
 }
 
 function githubHeaders(): HeadersInit {
@@ -156,19 +187,6 @@ function trimBlobText(text: string | null | undefined, maxChars: number): string
   if (!trimmed) return ''
   if (trimmed.length <= maxChars) return trimmed
   return `${trimmed.slice(0, maxChars)}\n\n... (truncated)`
-}
-
-function normalizeRootEntries(tree: TreeNode | null | undefined): string[] {
-  return (
-    tree?.entries
-      ?.map((entry) => {
-        const name = entry.name?.trim()
-        if (!name) return null
-        return `${entry.type === 'tree' ? 'dir' : 'file'}: ${name}`
-      })
-      .filter((entry): entry is string => Boolean(entry))
-      .sort((left, right) => left.localeCompare(right)) ?? []
-  )
 }
 
 function uniqueRepos(repos: GitHubProfileRepo[]): GitHubProfileRepo[] {
@@ -576,10 +594,40 @@ function escapeGraphQlString(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 }
 
+function blobAliasLines(
+  candidates: ReadonlyArray<{ alias: string; path: string }>
+): string {
+  return candidates
+    .map(
+      ({ alias, path }) =>
+        `${alias}: object(expression: "HEAD:${path}") { ... on Blob { text } }`
+    )
+    .join('\n        ')
+}
+
+function resolveFirstCandidate(
+  node: Record<string, BlobNode | null | undefined> | null | undefined,
+  candidates: ReadonlyArray<{ alias: string; path: string }>,
+  maxChars: number
+): { content: string; path: string } {
+  for (const candidate of candidates) {
+    const text = node?.[candidate.alias]?.text
+    const trimmed = trimBlobText(text, maxChars)
+    if (trimmed) {
+      return { content: trimmed, path: candidate.path }
+    }
+  }
+
+  return { content: '', path: '' }
+}
+
 export async function getGitHubRepoStyleDetails(
   repos: GitHubProfileRepo[]
 ): Promise<GitHubRepoStyleDetails[]> {
   if (repos.length === 0) return []
+
+  const depAliases = blobAliasLines(DEPENDENCY_CANDIDATES)
+  const uiAliases = blobAliasLines(UI_CANDIDATES)
 
   const lines = repos.map((repo, index) => {
     const [owner, name] = repo.nameWithOwner.split('/')
@@ -591,41 +639,29 @@ export async function getGitHubRepoStyleDetails(
         readme: object(expression: "HEAD:README.md") {
           ... on Blob { text }
         }
-        packageJson: object(expression: "HEAD:package.json") {
-          ... on Blob { text }
-        }
-        tsconfig: object(expression: "HEAD:tsconfig.json") {
-          ... on Blob { text }
-        }
-        tailwindConfig: object(expression: "HEAD:tailwind.config.ts") {
-          ... on Blob { text }
-        }
-        root: object(expression: "HEAD:") {
-          ... on Tree {
-            entries {
-              name
-              type
-            }
-          }
-        }
+        ${depAliases}
+        ${uiAliases}
       }
     `
   })
 
-  const data = await fetchGitHubGraphQl<Record<string, {
+  type RepoStyleNode = {
     nameWithOwner?: string
     url?: string
     description?: string | null
     readme?: BlobNode | null
-    packageJson?: BlobNode | null
-    tsconfig?: BlobNode | null
-    tailwindConfig?: BlobNode | null
-    root?: TreeNode | null
-  } | null>>(`query RepoStyleDetails { ${lines.join('\n')} }`)
+  } & Record<string, BlobNode | null | undefined>
+
+  const data = await fetchGitHubGraphQl<Record<string, RepoStyleNode | null>>(
+    `query RepoStyleDetails { ${lines.join('\n')} }`
+  )
 
   return repos.flatMap((repo, index) => {
     const node = data[`repo${index}`]
     if (!node?.nameWithOwner || !node.url) return []
+
+    const dependencies = resolveFirstCandidate(node, DEPENDENCY_CANDIDATES, 2500)
+    const globalsCss = resolveFirstCandidate(node, UI_CANDIDATES, 2500)
 
     return [
       {
@@ -633,10 +669,10 @@ export async function getGitHubRepoStyleDetails(
         url: node.url,
         description: node.description?.trim() || null,
         readme: trimBlobText(node.readme?.text, 5000),
-        packageJson: trimBlobText(node.packageJson?.text, 2500),
-        tsconfig: trimBlobText(node.tsconfig?.text, 2000),
-        tailwindConfig: trimBlobText(node.tailwindConfig?.text, 2500),
-        rootEntries: normalizeRootEntries(node.root),
+        dependencies: dependencies.content,
+        dependenciesPath: dependencies.path,
+        globalsCss: globalsCss.content,
+        globalsCssPath: globalsCss.path,
       },
     ]
   })
