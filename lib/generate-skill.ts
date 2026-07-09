@@ -112,7 +112,7 @@ export function buildSkillMarkdown(input: {
 
   return [
     '---',
-    `name: ${skillFrontmatterName(overview.login)}`,
+    `name: ${yamlDoubleQuotedString(skillFrontmatterName(overview.login))}`,
     `description: ${yamlDoubleQuotedString(
       `GitHub profile skill from @${overview.login}. Use it when the task would benefit from mimicking this developer's repo choices, coding style, and implementation techniques.`
     )}`,

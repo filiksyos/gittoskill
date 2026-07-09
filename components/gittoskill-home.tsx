@@ -43,7 +43,11 @@ function parseSkillMarkdown(markdown: string): ParsedSkillMarkdown {
   const frontmatter = match[1]
 
   return {
-    name: frontmatter.match(/^name:\s*(.+)$/m)?.[1]?.trim() ?? null,
+    name:
+      frontmatter
+        .match(/^name:\s*(.+)$/m)?.[1]
+        ?.trim()
+        .replace(/^"(.*)"$/, '$1') ?? null,
     description:
       frontmatter
         .match(/^description:\s*(.+)$/m)?.[1]
