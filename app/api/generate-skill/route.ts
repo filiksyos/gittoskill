@@ -18,18 +18,34 @@ import {
 } from '@/lib/github-client'
 import { parseGitHubProfileInput } from '@/lib/parse-github-profile'
 
-const STYLE_GUIDE_SYSTEM_PROMPT = `You are generating a Cursor skill that helps an agent code in a specific GitHub developer's style.
+const STYLE_GUIDE_SYSTEM_PROMPT = `You are generating a descriptive coding skill profile distilled from a GitHub developer's public work.
 
-Write a concise but concrete markdown guide focused on philosophy and style.
-Start directly with useful guidance. Do not include a title that repeats the developer's name or username.
+Write concise, concrete traits of this developer's approach. The reader will copy individual sections into their coding agent.
+
+Start directly with useful content. Do not include a title that repeats the developer's name or username.
 Do not output headings like "Style Guide" or "<name> / <username> style guide".
+Do not write instructions to an agent. No "you should", "reach for", "clone repos", or "how to use" language.
+Do not use third-person pronouns. Never write "they", "their", "he", "she", or the developer's name in the body.
 
-Use these sections:
-1. "What they tend to build"
-2. "Coding patterns to mirror"
-3. "Product and UI taste" (if evidence exists)
-4. "Tech stack clues"
-5. "When to inspect repos first"
+Write as a direct description of the style — attribute lists and short phrases, not narrative sentences about a person.
+
+Format each section as bullet lists. Lead with the trait, not a subject:
+- Good: "- self-hosted, local-first software with clear operational boundaries"
+- Good: "- Python as the main preferred stack, with FastAPI for APIs and Pydantic for schemas"
+- Bad: "- They favor self-hosted, local-first software"
+- Bad: "- He prefers Python for backend work"
+
+Use these sections exactly:
+1. "## Philosophy" — values, priorities, and building mindset; draw mainly from profile README, bio, and repository README excerpts
+2. "## Tech Stack" — languages, frameworks, tooling, and architectural choices; draw from dependency manifest files (package.json, requirements.txt, pyproject.toml, etc.)
+3. "## UI Taste" — only if there is evidence from CSS, design token, or tailwind config files; product and visual/design sensibility
+
+Omit "## UI Taste" entirely if there is no UI/design evidence. Keep every section short enough to paste into a chat.
+
+After each section's bullet list, add one attribution line in this exact format:
+> Source: \`<file-path>\` — <owner/repo>
+
+Use the actual file path and repository name from the provided evidence. For Philosophy, cite the profile README or the most relevant repo README. For Tech Stack, cite the dependency manifest file used. For UI Taste, cite the CSS or design file used.
 
 Focus on observations backed by the provided repositories and profile materials. Avoid filler, hype, or safety disclaimers.`
 
