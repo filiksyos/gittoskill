@@ -173,7 +173,10 @@ export function GittoskillHome({
   }
 
   return (
-    <div id="main-content" className="min-h-screen bg-[#FFFDF8] text-zinc-900">
+    <div
+      id="main-content"
+      className="flex min-h-screen flex-col bg-[#FFFDF8] text-zinc-900"
+    >
       <nav className="sticky top-0 z-50 border-b-[3px] border-zinc-900 bg-[#FFFDF8]">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
           <span className="text-xl font-bold tracking-tight">
@@ -193,7 +196,7 @@ export function GittoskillHome({
         </div>
       </nav>
 
-      <main className="mx-auto flex max-w-5xl flex-col items-center gap-10 px-4 py-10 sm:px-6 sm:py-12">
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center gap-10 px-4 py-10 sm:px-6 sm:py-12">
         <div className="flex w-full flex-col items-center gap-6 text-center">
           <div className="flex w-full flex-col items-center">
             <h1 className="max-w-4xl text-5xl font-extrabold tracking-tighter sm:text-6xl lg:text-7xl">
@@ -300,7 +303,7 @@ export function GittoskillHome({
         ) : null}
       </main>
 
-      <footer className="border-t-[3px] border-zinc-900 py-6 text-center text-sm text-zinc-500">
+      <footer className="shrink-0 border-t-[3px] border-zinc-900 py-4 text-center text-sm text-zinc-500">
         <p className="px-4 sm:px-6">
           Made by{" "}
           <a
