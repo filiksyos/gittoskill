@@ -299,6 +299,20 @@ export function GittoskillHome({
           </div>
         ) : null}
       </main>
+
+      <footer className="border-t-[3px] border-zinc-900 py-6 text-center text-sm text-zinc-500">
+        <p className="px-4 sm:px-6">
+          Made by{" "}
+          <a
+            href="https://filiksyos.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-[#7c3aed] underline decoration-[#7c3aed] underline-offset-2 transition-colors hover:text-[#6d28d9] hover:decoration-[#6d28d9]"
+          >
+            Filiksyos
+          </a>
+        </p>
+      </footer>
     </div>
   )
 }
